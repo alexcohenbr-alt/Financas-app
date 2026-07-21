@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Finanças</title>
+
+<!-- Suporte a "Adicionar à Tela de Início" no iPhone -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Finanças" />
+<link rel="apple-touch-icon" href="icon.png" />
+
+<style>
+  html, body { margin: 0; padding: 0; background: #E4E4E7; }
+  #root { min-height: 100vh; }
+</style>
+
+<!-- React + ReactDOM -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- Babel, pra transformar o JSX direto no navegador (sem precisar de build) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- SheetJS, usado pelo botão "Exportar planilha" -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="app.jsx"></script>
+<script type="text/babel">
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App />);
+</script>
+</body>
+</html>
