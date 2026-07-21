@@ -1285,24 +1285,27 @@ CRYPTO_TO_COINGECKO_ID[i.ticker]);
   if (acoes.length > 0) {
     const tickers = [...new Set(acoes.map(i => i.ticker))];
     const token = state.apiKeys?.brapiToken;
-    const url = `https://brapi.dev/api/quote/${tickers.map(encodeURIComponent).join(",")}`
+    const results = await Promise.all(tickers.map(async (ticker) => {
+      const url = `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}`
 + (token ? `?token=${encodeURIComponent(token)}` : "");
-    try {
-      const res = await fetch(url);
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        errors.push(`ações: HTTP ${res.status}${data?.message ? " — " + data.message : ""}`);
-      } else if (Array.isArray(data?.results)) {
-        data.results.forEach(r => { if (r?.regularMarketPrice != null)
-prices[`acao:${r.symbol}`] = r.regularMarketPrice; });
-        const found = new Set(data.results.map(r => r.symbol));
-        const missing = tickers.filter(t => !found.has(t));
-        if (missing.length > 0) errors.push(`ações sem cotação (verifique o token
-ou o ticker): ${missing.join(", ")}`);
-      } else {
-        errors.push(data?.message || "ações: resposta inesperada da API");
+      try {
+        const res = await fetch(url);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          return { ticker, error: `HTTP ${res.status}${data?.message ? " — " +
+data.message : ""}` };
+        }
+        const r = Array.isArray(data?.results) ? data.results[0] : null;
+        if (r?.regularMarketPrice != null) return { ticker, price: r.regularMarketPrice };
+        return { ticker, error: "sem cotação (verifique o token ou o ticker)" };
+      } catch (e) {
+        return { ticker, error: e.message || "falha de conexão" };
       }
-    } catch (e) { errors.push(`ações: ${e.message || "falha de conexão"}`); }
+    }));
+    results.forEach(r => {
+      if (r.price != null) prices[`acao:${r.ticker}`] = r.price;
+      else errors.push(`${r.ticker}: ${r.error}`);
+    });
   }
 
   if (criptos.length > 0) {
