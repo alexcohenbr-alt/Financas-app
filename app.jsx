@@ -298,6 +298,16 @@ function toLocalISO(d) {
 function todayISO() { return toLocalISO(new Date()); }
 function monthLabel(i) { return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][i]; }
 function monthLabelFull(i) { return ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][i]; }
+function timeAgoPt(isoTimestamp) {
+  const diffMs = Date.now() - new Date(isoTimestamp).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "agora mesmo";
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `há ${days} dia${days === 1 ? "" : "s"}`;
+}
 function addMonthsSafe(dateISO, n) {
   const [y, m, d] = dateISO.split("-").map(Number);
   const base = new Date(y, m - 1 + n, 1);
@@ -353,6 +363,9 @@ date: dateISO, description: rule.description, recurringId: rule.id }];
 }
 
 const STORAGE_KEY = "financas-v2";
+const APP_VERSION = "1.4.0";
+// Nome de quem detém os direitos do app (independente do perfil de quem usa) — troque aqui quando decidir o nome definitivo/empresa.
+const APP_AUTHOR = "Alex Cohen";
 
 const DEFAULT_STATE = {
  profile: { name: "", incomeFixed: 0, incomeVariable: 0 },
@@ -366,6 +379,7 @@ const DEFAULT_STATE = {
   sales: [], // {id, investmentId, name, type, quantity, proceeds, costBasis, realizedPL, date, accountId}
   goals: [],
   pin: null,
+  apiKeys: {}, // { brapiToken } — token gratuito da brapi.dev, usado só pra cotação de ações/FIIs
 };
 
 // ---------- Dados fictícios (usuário médio) para testes ----------
@@ -786,6 +800,7 @@ function migrateState(parsed) {
   st.sales = st.sales || [];
   st.goals = st.goals || [];
   st.investments = st.investments || [];
+  st.apiKeys = st.apiKeys || {};
   // Migração: renda única (incomeMonthly) vira renda fixa; renda variável começa em 0
   if (st.profile && st.profile.incomeFixed === undefined) {
     st.profile = { ...st.profile, incomeFixed: st.profile.incomeMonthly || 0,
@@ -999,6 +1014,103 @@ justifyContent: "center",
   };
 }
 
+// ---------- Campo de data com calendário próprio (evita instabilidade do date picker nativo) ----------
+function formatDatePt(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} de ${monthLabelFull(m - 1).toLowerCase()} de ${y}`;
+}
+function DateInput({ value, onChange, style }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} style={{
+        ...inputStyle, ...style, textAlign: "left", cursor: "pointer",
+        fontFamily: FONT_BODY, color: value ? COLORS.textPrimary : COLORS.textMuted,
+      }}>
+        {value ? formatDatePt(value) : "Selecionar data"}
+      </button>
+      {open && (
+        <DatePickerModal value={value}
+          onSelect={(v) => { onChange(v); setOpen(false); }}
+          onClose={() => setOpen(false)} />
+      )}
+    </>
+  );
+}
+function DatePickerModal({ value, onSelect, onClose }) {
+  const seed = value ? value.split("-").map(Number) : null;
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(seed ? seed[0] : now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(seed ? seed[1] - 1 : now.getMonth());
+  const todayStr = todayISO();
+  const startWeekday = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const changeMonth = (delta) => {
+    let m = viewMonth + delta, y = viewYear;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    setViewMonth(m); setViewYear(y);
+  };
+  const isoFor = (d) => `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,15,0.45)",
+zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480,
+margin: "0 auto", background: COLORS.surface, borderTopLeftRadius: 22,
+borderTopRightRadius: 22, padding: "18px 16px 24px", boxShadow: "0 -8px 30px rgba(20,20,15,0.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <button onClick={() => changeMonth(-1)} style={calNavBtnStyle()}><ChevronLeft
+size={18} /></button>
+          <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}
+>{monthLabelFull(viewMonth)} {viewYear}</div>
+          <button onClick={() => changeMonth(1)} style={calNavBtnStyle()}><ChevronRight
+size={18} /></button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4,
+marginBottom: 6 }}>
+          {["D","S","T","Q","Q","S","S"].map((w, i) => (
+            <div key={i} style={{ textAlign: "center", fontSize: 11, color:
+COLORS.textMuted, fontWeight: 600 }}>{w}</div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4,
+marginBottom: 16 }}>
+          {cells.map((d, i) => {
+            if (d === null) return <div key={i} />;
+            const iso = isoFor(d);
+            const isToday = iso === todayStr;
+            const isSelected = iso === value;
+            return (
+              <button key={i} onClick={() => onSelect(iso)} style={{
+                aspectRatio: "1", borderRadius: 10, border: isToday && !isSelected ?
+`1px solid ${COLORS.teal}` : "1px solid transparent",
+                background: isSelected ? COLORS.teal : "transparent", color: isSelected ?
+"#fff" : COLORS.textPrimary, fontSize: 13, fontFamily: FONT_MONO, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{d}</button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ ...saveBtnStyle(COLORS.surface2),
+marginTop: 0, flex: 1 }}>Cancelar</button>
+          <button onClick={() => onSelect(todayStr)} style={{
+...saveBtnStyle(COLORS.teal), marginTop: 0, flex: 1 }}>Hoje</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function calNavBtnStyle() {
+  return { width: 34, height: 34, borderRadius: 10, background: COLORS.surface2,
+border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center",
+justifyContent: "center", cursor: "pointer", color: COLORS.textPrimary };
+}
+
 // ---------- App ----------
 // ---------- Cálculo central de totais (função pura, testável) ----------
 function computeTotals(state) {
@@ -1155,6 +1267,61 @@ function investedValueOf(inv) {
   if (inv.type === "acao" || inv.type === "cripto") return (inv.quantity || 0) *
 (inv.buyPrice || 0);
   return inv.appliedValue ?? 0;
+}
+
+// ---------- Cotações ao vivo (ações via brapi.dev, cripto via CoinGecko — ambas públicas, sem custo) ----------
+const CRYPTO_TO_COINGECKO_ID = {
+  "Bitcoin (BTC)": "bitcoin", "Ethereum (ETH)": "ethereum", "Solana (SOL)": "solana",
+  "Cardano (ADA)": "cardano", "Ripple (XRP)": "ripple", "Dogecoin (DOGE)": "dogecoin",
+  "BNB": "binancecoin",
+};
+async function fetchQuotes(state) {
+  const acoes = state.investments.filter(i => i.type === "acao" && i.ticker);
+  const criptos = state.investments.filter(i => i.type === "cripto" &&
+CRYPTO_TO_COINGECKO_ID[i.ticker]);
+  const prices = {}; // "acao:TICKER" | "cripto:coingeckoId" -> preço
+  const errors = [];
+
+  if (acoes.length > 0) {
+    const tickers = [...new Set(acoes.map(i => i.ticker))];
+    const token = state.apiKeys?.brapiToken;
+    const url = `https://brapi.dev/api/quote/${tickers.map(encodeURIComponent).join(",")}`
++ (token ? `?token=${encodeURIComponent(token)}` : "");
+    try {
+      const res = await fetch(url);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        errors.push(`ações: HTTP ${res.status}${data?.message ? " — " + data.message : ""}`);
+      } else if (Array.isArray(data?.results)) {
+        data.results.forEach(r => { if (r?.regularMarketPrice != null)
+prices[`acao:${r.symbol}`] = r.regularMarketPrice; });
+        const found = new Set(data.results.map(r => r.symbol));
+        const missing = tickers.filter(t => !found.has(t));
+        if (missing.length > 0) errors.push(`ações sem cotação (verifique o token
+ou o ticker): ${missing.join(", ")}`);
+      } else {
+        errors.push(data?.message || "ações: resposta inesperada da API");
+      }
+    } catch (e) { errors.push(`ações: ${e.message || "falha de conexão"}`); }
+  }
+
+  if (criptos.length > 0) {
+    const ids = [...new Set(criptos.map(i => CRYPTO_TO_COINGECKO_ID[i.ticker]))];
+    const url =
+`https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=brl`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        errors.push(`cripto: HTTP ${res.status}`);
+      } else {
+        ids.forEach(id => { if (data?.[id]?.brl != null) prices[`cripto:${id}`] =
+data[id].brl; });
+      }
+    } catch (e) { errors.push(`cripto: ${e.message || "falha de conexão"}`); }
+  }
+
+  return { prices, errors };
 }
 
 // ---------- PIN ----------
@@ -1837,8 +2004,7 @@ value={a.id}>{a.nickname || a.bank}</option>)}
          <label style={labelStyle}>Valor</label>
          <AmountInput value={amount} onChange={setAmount} placeholder="0,00" />
          <label style={labelStyle}>Data</label>
-         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-style={inputStyle} />
+         <DateInput value={date} onChange={setDate} />
          <label style={labelStyle}>Descrição (opcional)</label>
          <input value={description} onChange={e => setDescription(e.target.value)}
 placeholder="Ex: guardando na reserva" style={inputStyle} />
@@ -1925,13 +2091,13 @@ placeholder="Deixe em branco pra repetir sem parar" style={inputStyle} />
           const active = categoryId === cat.id;
           return (
             <button key={cat.id} onClick={() => { setCategoryId(cat.id); setSubcategoryId(""); }} style={{ display:
-"flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 62, padding:
-"8px 4px", borderRadius: 12, cursor: "pointer", border: `1px solid ${active ?
+"flex", flexDirection: "column", alignItems: "center", gap: 4, width: 88, flexShrink: 0, padding:
+"8px 3px", borderRadius: 12, cursor: "pointer", border: `1px solid ${active ?
 cat.color : COLORS.border}`, background: active ? `${cat.color}20` :
 COLORS.surface }}>
              <Icon size={16} color={cat.color} />
              <span style={{ fontSize: 10.5, color: COLORS.textMuted, textAlign:
-"center" }}>{cat.label}</span>
+"center", lineHeight: 1.25, wordBreak: "normal", overflowWrap: "normal", width: "100%" }}>{cat.label}</span>
             </button>
           );
          })}
@@ -1950,8 +2116,7 @@ COLORS.surface }}>
          );
        })()}
       <label style={labelStyle}>{repeatMode === "installments" ? "Data da 1ª parcela" : "Data"}</label>
-      <input type="date" value={date} onChange={e => setDate(e.target.value)}
-style={inputStyle} />
+      <DateInput value={date} onChange={setDate} />
       <label style={labelStyle}>Descrição (opcional)</label>
       <input value={description} onChange={e => setDescription(e.target.value)}
 placeholder="Ex: mercado, ifood…" style={inputStyle} />
@@ -2136,8 +2301,7 @@ marginBottom: 4 }}>Editando lançamento</div>
          </div>
          <div style={{ flex: 1.2 }}>
           <label style={labelStyle}>Data</label>
-          <input type="date" value={eDate} onChange={e => setEDate(e.target.value)}
-style={inputStyle} />
+          <DateInput value={eDate} onChange={setEDate} />
          </div>
        </div>
        {!isTransfer && (
@@ -2589,8 +2753,7 @@ style={selectStyle}>
        </div>
        <div style={{ flex: 1.2 }}>
         <label style={labelStyle}>Data</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-style={inputStyle} />
+        <DateInput value={date} onChange={setDate} />
        </div>
       </div>
       <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 8, lineHeight:
@@ -2613,12 +2776,42 @@ fontSize: 13 }}>Cancelar</button>
 // ---------- Investimentos ----------
 function InvestmentsScreen({ state, setState, totals, go, showToast }) {
  const [filter, setFilter] = useState("todos");
+ const [refreshing, setRefreshing] = useState(false);
  const invested = state.investments.reduce((s, i) => s + investedValueOf(i), 0);
  const current = totals.investTotal;
  const pl = current - invested;
 
   const filtered = filter === "todos" ? state.investments : state.investments.filter(i =>
 i.type === filter);
+
+  const quotableCount = state.investments.filter(i => (i.type === "acao" && i.ticker)
+|| (i.type === "cripto" && CRYPTO_TO_COINGECKO_ID[i.ticker])).length;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    const { prices, errors } = await fetchQuotes(state);
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+    const nextInvestments = state.investments.map(inv => {
+      if (inv.type === "acao" && prices[`acao:${inv.ticker}`] != null) {
+        updatedCount++;
+        return { ...inv, currentPrice: prices[`acao:${inv.ticker}`], lastUpdated: now };
+      }
+      if (inv.type === "cripto") {
+        const id = CRYPTO_TO_COINGECKO_ID[inv.ticker];
+        if (id && prices[`cripto:${id}`] != null) {
+          updatedCount++;
+          return { ...inv, currentPrice: prices[`cripto:${id}`], lastUpdated: now };
+        }
+      }
+      return inv;
+    });
+    setState({ ...state, investments: nextInvestments });
+    setRefreshing(false);
+    if (errors.length > 0) showToast(`${updatedCount} cotação(ões) atualizada(s) — ${errors.join(" · ")}`);
+    else if (updatedCount > 0) showToast(`${updatedCount} cotação(ões) atualizada(s)`);
+    else showToast("Nenhum ativo cotável (ações ou cripto com ticker reconhecido)");
+  };
 
   const del = (invId) => {
     const inv = state.investments.find(i => i.id === invId);
@@ -2632,7 +2825,7 @@ transactions: state.transactions.filter(t => !linkedIds.includes(t.id)) });
     <ScreenHeader title="Investimentos" color={COLORS.green} onBack={() =>
 go("home")} />
     <div style={{ background: `linear-gradient(135deg, ${COLORS.green}20, ${COLORS.surface})`, border: `1px solid ${COLORS.green}44`, borderRadius: 18,
-padding: 16, marginBottom: 16 }}>
+padding: 16, marginBottom: 12 }}>
      <div style={{ fontSize: 12, color: COLORS.textMuted }}>Valor atual</div>
      <div style={{ fontFamily: FONT_MONO, fontSize: 26, fontWeight: 500 }}
 >{currency(current)}</div>
@@ -2642,7 +2835,16 @@ padding: 16, marginBottom: 16 }}>
        {currency(Math.abs(pl))} {pl >= 0 ? "de ganho" : "de perda"} sobre
 {currency(invested)} aplicados
      </div>
-    </div>
+   </div>
+
+    {quotableCount > 0 && (
+     <button onClick={handleRefresh} disabled={refreshing} style={{ width: "100%",
+marginBottom: 14, padding: "11px 0", borderRadius: 14, border: `1px solid ${COLORS.green}55`, background: `${COLORS.green}15`, color: COLORS.green,
+fontWeight: 600, fontSize: 13, cursor: refreshing ? "default" : "pointer", opacity:
+refreshing ? 0.6 : 1 }}>
+      {refreshing ? "Atualizando…" : `↻ Atualizar cotações (${quotableCount})`}
+     </button>
+    )}
 
     <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14,
 paddingBottom: 2 }}>
@@ -2712,7 +2914,8 @@ cursor: "pointer" }}>
        <div>
          <div style={{ fontWeight: 600, fontSize: 14 }}>{inv.name}</div>
          <div style={{ fontSize: 11, color: COLORS.textMuted }}>{typeInfo?.label}
-{inv.quantity ? ` · ${inv.quantity} un.` : ""}</div>
+{inv.quantity ? ` · ${inv.quantity} un.` : ""}{inv.lastUpdated ? ` · atualizado
+${timeAgoPt(inv.lastUpdated)}` : ""}</div>
        </div>
       </div>
       {confirming ? <ConfirmDelete onConfirm={() => onDelete(inv.id)} onCancel={() => setConfirming(false)} /> : (
@@ -2826,8 +3029,7 @@ COLORS.textMuted, fontSize: 13, lineHeight: 1.5 }}>
         </>
       )}
       <label style={labelStyle}>Data</label>
-      <input type="date" value={date} onChange={e => setDate(e.target.value)}
-style={inputStyle} />
+      <DateInput value={date} onChange={setDate} />
       <label style={labelStyle}>Conta de destino (onde o dinheiro entra)</label>
       <select value={accountId} onChange={e => setAccountId(e.target.value)}
 style={selectStyle}>
@@ -3087,8 +3289,7 @@ essa compra vai somar a essa posição em vez de criar uma nova.
     )}
 
    <label style={labelStyle}>Data</label>
-   <input type="date" value={buyDate} onChange={e =>
-setBuyDate(e.target.value)} style={inputStyle} />
+   <DateInput value={buyDate} onChange={setBuyDate} />
 
     {hasAccounts && (
      <>
@@ -3977,10 +4178,11 @@ color={COLORS.pink} onBack={onBack} />
        const active = category === c.id;
        return (
          <button key={c.id} onClick={() => setCategory(c.id)} style={{ display: "flex",
-flexDirection: "column", alignItems: "center", gap: 4, minWidth: 68, padding: "8px 4px", borderRadius: 12, cursor: "pointer", border: `1px solid ${active ? COLORS.pink :
+flexDirection: "column", alignItems: "center", gap: 4, width: 88, flexShrink: 0, padding: "8px 3px", borderRadius: 12, cursor: "pointer", border: `1px solid ${active ? COLORS.pink :
 COLORS.border}`, background: active ? `${COLORS.pink}20` : COLORS.surface }}>
           <Icon size={16} color={COLORS.pink} />
-          <span style={{ fontSize: 10, color: COLORS.textMuted, textAlign: "center" }}
+          <span style={{ fontSize: 10, color: COLORS.textMuted, textAlign: "center",
+lineHeight: 1.25, wordBreak: "normal", overflowWrap: "normal", width: "100%" }}
 >{c.label}</span>
          </button>
        );
@@ -3997,8 +4199,7 @@ COLORS.border}`, background: active ? `${COLORS.pink}20` : COLORS.surface }}>
       </div>
      </div>
      <label style={labelStyle}>Prazo (opcional)</label>
-     <input type="date" value={dueDate} onChange={e =>
-setDueDate(e.target.value)} style={inputStyle} />
+     <DateInput value={dueDate} onChange={setDueDate} />
      <button onClick={save} style={saveBtnStyle(COLORS.pink)}>{editing ? "Salvar alterações" : "Criar meta"}</button>
     </div>
   );
@@ -4011,6 +4212,7 @@ useState(String(state.profile.incomeFixed || state.profile.incomeMonthly || ""))
  const [incomeVariable, setIncomeVariable] =
 useState(String(state.profile.incomeVariable || ""));
  const [pinSetup, setPinSetup] = useState("");
+ const [brapiToken, setBrapiToken] = useState(state.apiKeys?.brapiToken || "");
  const [confirmingDemo, setConfirmingDemo] = useState(false);
  const [confirmingComplex, setConfirmingComplex] = useState(false);
  const [confirmingUpperClass, setConfirmingUpperClass] = useState(false);
@@ -4019,6 +4221,8 @@ useState(String(state.profile.incomeVariable || ""));
  const saveProfile = () => { setState({ ...state, profile: { name,
 incomeFixed: parseBRNumber(incomeFixed), incomeVariable: parseBRNumber(incomeVariable) } });
 showToast("Perfil atualizado"); };
+ const saveBrapiToken = () => { setState({ ...state, apiKeys: { ...state.apiKeys,
+brapiToken: brapiToken.trim() } }); showToast("Token salvo"); };
  const savePin = () => { if (pinSetup.length >= 4) { setState({ ...state, pin:
 pinSetup }); showToast("PIN configurado"); setPinSetup(""); } };
  const removePin = () => { setState({ ...state, pin: null }); showToast("PIN removido"); };
@@ -4043,6 +4247,20 @@ de freelas, comissão etc. Some as duas quando quiser usar um número só.
      <button onClick={saveProfile} style={saveBtnStyle(COLORS.indigo)}>Salvar
 perfil</button>
 
+    </Section>
+
+    <Section title="Cotações automáticas">
+     <div style={{ fontSize: 12.5, color: COLORS.textMuted, lineHeight: 1.5, marginBottom: 4 }}>
+      Criptomoedas são cotadas automaticamente, sem configuração. Pra ações e
+FIIs além de PETR4/VALE3/MGLU3/ITUB4 (que são gratuitas), cole aqui um token
+gratuito da <b>brapi.dev</b> (crie uma conta lá, sem cartão) — o botão "Atualizar
+cotações" na tela de Investimentos usa esse token.
+     </div>
+     <label style={labelStyle}>Token da brapi.dev</label>
+     <input value={brapiToken} onChange={e => setBrapiToken(e.target.value)}
+style={inputStyle} placeholder="Cole seu token aqui" />
+     <button onClick={saveBrapiToken} style={saveBtnStyle(COLORS.green)}>Salvar
+token</button>
     </Section>
 
     <Section title="Contas e cartões">
@@ -4127,6 +4345,14 @@ color: COLORS.negative, marginTop: 8 }}>Limpar todos os dados</button>
 showToast={showToast} />
 
    <BackupSection state={state} setState={setState} showToast={showToast} />
+
+   <div style={{ textAlign: "center", padding: "18px 0 4px", fontSize: 11,
+color: COLORS.textMuted }}>
+    Finanças · v{APP_VERSION}
+    <br />
+    © {new Date().getFullYear()} {APP_AUTHOR}. Todos os
+direitos reservados.
+   </div>
       </div>
     );
 }
