@@ -950,6 +950,23 @@ justifyContent: "center",
     </button>
   );
 }
+function HomeTile({ image, label, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      position: "relative", border: "none", padding: 0, cursor: "pointer",
+      borderRadius: 20, overflow: "hidden", aspectRatio: "1 / 1.22",
+      background: COLORS.surface2, width: "100%", display: "block",
+    }}>
+      <img src={image} alt="" style={{ position: "absolute", inset: 0, width: "100%",
+height: "100%", objectFit: "cover" }} />
+      <div style={{ position: "absolute", left: 8, right: 8, bottom: 12, textAlign: "center",
+        color: "#fff", fontSize: 14.5, fontWeight: 800,
+        textShadow: "0 1px 3px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)" }}>
+        {label}
+      </div>
+    </button>
+  );
+}
 function ScreenHeader({ title, color, onBack, onEdit }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1445,37 +1462,43 @@ fontSize: 20, fontFamily: FONT_MONO, cursor: "pointer", display: "flex", alignIt
 
 // ---------- Home ----------
 function HomeScreen({ state, setState, totals, chartData, go, showToast }) {
-  const consolidada = totals.totalContas + totals.investTotal - totals.totalCartoes;
   const hasAnything = state.accounts.length || state.cards.length;
   const loadDemo = () => { setState(seedDemoData()); showToast("Dados fictícios carregados"); };
-  const recorrenciasAtivas = (state.recurring || []).filter(r => r.active);
-  const recContaCount = recorrenciasAtivas.filter(r => r.kind !== "cartao").length;
-  const recCartaoCount = recorrenciasAtivas.filter(r => r.kind === "cartao").length;
+
+  const now = new Date();
+  const todayDow = now.getDay(); // 0=Dom ... 6=Sáb
+  const dowLetters = ["D", "S", "T", "Q", "Q", "S", "S"];
+
   return (
    <div>
     <div style={{
       background: "linear-gradient(160deg, #3B4CC8, #2E3AA8)", color: "#fff",
-      borderRadius: 22, padding: "18px 20px 22px", marginBottom: 16,
+      margin: "-20px -16px 16px", padding: "26px 20px 26px",
     }}>
-     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-      <div>
-       <div style={{ fontFamily: FONT_BODY, fontSize: 12.5, opacity: 0.78 }}>
-        {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-       </div>
-       <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, marginTop: 2, opacity: 0.9 }}>Finanças</div>
-      </div>
+     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, fontSize: 28,
+        letterSpacing: -0.3, textShadow: "0 3px 8px rgba(0,0,0,0.3)" }}>Finanças</div>
       <button onClick={() => go("novo")} style={{
-        width: 40, height: 40, borderRadius: 13, background: "rgba(255,255,255,0.18)",
-        border: "none", color: "#fff", display: "flex", alignItems: "center",
-        justifyContent: "center", cursor: "pointer",
-      }}><Plus size={20} /></button>
+        width: 52, height: 52, borderRadius: 26, background: "rgba(255,255,255,0.18)",
+        border: "1.5px solid rgba(255,255,255,0.35)", color: "#fff", display: "flex",
+        alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
+      }}><Plus size={28} /></button>
      </div>
-     <div style={{ fontSize: 12, opacity: 0.75, marginTop: 16 }}>Posição consolidada</div>
-     <div style={{ fontFamily: FONT_MONO, fontSize: 30, fontWeight: 700, marginTop: 2 }}>{currency(consolidada)}</div>
-     <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap", fontSize: 11.5, opacity: 0.85 }}>
-      <span>Contas: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.totalContas)}</b></span>
-      <span>Faturas: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.totalCartoes)}</b></span>
-      <span>Investido: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.investTotal)}</b></span>
+     <div style={{ display: "flex", gap: 7, marginTop: 34 }}>
+      {dowLetters.map((letter, i) => {
+        const isToday = i === todayDow;
+        return (
+          <div key={i} style={{
+            width: 30, height: 30, borderRadius: 15, display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: isToday ? 14 : 12, fontWeight: 700,
+            color: isToday ? "#E5484D" : "rgba(255,255,255,0.55)",
+            background: isToday ? "#fff" : "transparent",
+            boxShadow: isToday ? "0 3px 8px rgba(0,0,0,0.18)" : "none",
+          }}>
+            {isToday ? now.getDate() : letter}
+          </div>
+        );
+      })}
      </div>
     </div>
 
@@ -1509,29 +1532,12 @@ COLORS.teal, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
    )}
 
     <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-     <Tile image="icones/bancos.png" icon={<Wallet size={21} />} label="Bancos"
-       value={state.accounts.length ? `${state.accounts.length} conta(s)` : "Nenhuma ainda"}
-       sub={recContaCount ? `${recContaCount} recorrência(s)` : undefined}
-       color={COLORS.orange} onClick={() => go("bancos")} />
-     <Tile image="icones/cartoes.png" icon={<CreditCard size={21} />} label="Cartões"
-       value={state.cards.length ? `${state.cards.length} cartão(ões)` : "Nenhum ainda"}
-       sub={recCartaoCount ? `${recCartaoCount} recorrência(s)` : undefined}
-       color={COLORS.cartao} onClick={() => go("cartoes")} />
-     <Tile image="icones/investimentos.png" icon={<Coins size={21} />} label="Investimentos"
-       value={currency(totals.investTotal)}
-       sub={`${state.investments.length} ativo(s)`}
-       color={COLORS.green} onClick={() => go("investimentos")} />
-     <Tile image="icones/planejamento.png" icon={<Compass size={21} />} label="Planejamento"
-       value={state.goals.length ? `${state.goals.length} meta(s)` : "Metas e projeção"}
-       sub="Metas e projeção"
-       color={COLORS.cyan} onClick={() => go("planejamento")} />
-     <Tile image="icones/patrimonio.png" icon={<Landmark size={21} />} label="Patrimônio"
-       value={currency(consolidada)}
-       sub="Contas + investido − faturas"
-       color={COLORS.indigo} onClick={() => go("patrimonio")} />
-     <Tile image="icones/perfil.png" icon={<Settings size={21} />} label="Perfil"
-       value="Ajustes, PIN, backup"
-       color={COLORS.textMuted} onClick={() => go("config")} />
+     <HomeTile image="icones/bancos.png" label="Bancos" onClick={() => go("bancos")} />
+     <HomeTile image="icones/cartoes.png" label="Cartões" onClick={() => go("cartoes")} />
+     <HomeTile image="icones/investimentos.png" label="Investimentos" onClick={() => go("investimentos")} />
+     <HomeTile image="icones/planejamento.png" label="Planejamento" onClick={() => go("planejamento")} />
+     <HomeTile image="icones/patrimonio.png" label="Patrimônio" onClick={() => go("patrimonio")} />
+     <HomeTile image="icones/perfil.png" label="Perfil" onClick={() => go("config")} />
     </div>
    </div>
   );
