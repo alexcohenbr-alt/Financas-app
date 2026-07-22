@@ -56,6 +56,9 @@ const PawPrint = (p) => <EmojiIcon {...p} emoji="🐾" />;
 const Gift = (p) => <EmojiIcon {...p} emoji="🎁" />;
 const Shield = (p) => <EmojiIcon {...p} emoji="🛡️" />;
 const TrendingDown = (p) => <EmojiIcon {...p} emoji="📉" />;
+const Compass = (p) => <EmojiIcon {...p} emoji="🧭" />;
+const PiggyBank = (p) => <EmojiIcon {...p} emoji="🐷" />;
+const Sunrise = (p) => <EmojiIcon {...p} emoji="🌅" />;
 
 /* ---------- Gráfico simples próprio (sem dependência externa) ---------- */
 function SimpleLineChart({ data, height = 160 }) {
@@ -139,7 +142,7 @@ const BRANDS = ["Visa", "Mastercard", "Elo", "American Express", "Hipercard",
 const ICONS = { Pizza, PartyPopper, Palmtree, Plane, GraduationCap, Utensils, Car, HeartPulse, Home, ShoppingBag,
 Repeat, Rocket, Zap, MoreHorizontal, Wallet, Download, Coins, Clipboard,
 CreditCard, Sparkles, Lightbulb, Wrench, Briefcase, Shirt, PawPrint, Gift, Shield,
-TrendingDown };
+TrendingDown, PiggyBank, Sunrise, Compass };
 
 const DEFAULT_CATEGORIES = [
  // Entradas
@@ -257,12 +260,16 @@ kinds: ["entrada", "saida"], system: true },
 const SYSTEM_CATS = new Set(["transferencia", "fatura_pagamento"]);
 
 const INVESTMENT_TYPES = [
+  { id: "poupanca", label: "Poupança", quoted: false, icon: "PiggyBank", color:
+"#EC4899" },
   { id: "acao", label: "Ações / FIIs", quoted: true, icon: "Coins", color: "#4F8EF7" },
   { id: "cripto", label: "Criptomoedas", quoted: true, icon: "Coins", color: "#F59E0B" },
   { id: "rendafixa", label: "Renda Fixa", quoted: false, icon: "Wallet", color:
 "#14B8A6" },
   { id: "tesouro", label: "Tesouro Direto", quoted: false, icon: "Wallet", color:
 "#8B5CF6" },
+  { id: "previdencia", label: "Previdência Privada", quoted: false, icon: "Sunrise",
+color: "#0891B2" },
 ];
 const CRYPTO_OPTIONS = ["Bitcoin (BTC)", "Ethereum (ETH)", "Solana (SOL)",
 "Cardano (ADA)", "Ripple (XRP)", "Dogecoin (DOGE)", "BNB", "Outra"];
@@ -407,7 +414,7 @@ card.closingDay)))].filter(k => k < openInvoice);
   });
   return changed ? transactions : state.transactions;
 }
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.1";
 // Nome de quem detém os direitos do app (independente do perfil de quem usa) — troque aqui quando decidir o nome definitivo/empresa.
 const APP_AUTHOR = "Alex Cohen";
 
@@ -901,7 +908,7 @@ function iconBtnStyle(color) {
 background: `${color}18`, color, display: "flex", alignItems: "center", justifyContent:
 "center", cursor: "pointer" };
 }
-function Tile({ icon, label, value, sub, color, onClick, valueFont, valueSize }) {
+function Tile({ icon, image, label, value, sub, color, onClick, valueFont, valueSize }) {
   return (
     <button onClick={onClick} style={{
      background: COLORS.surface, border: `1px solid ${COLORS.border}`,
@@ -909,8 +916,13 @@ borderRadius: 18, padding: 16,
      textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10,
 width: "100%",
     }}>
-     <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}22`,
+     {image ? (
+       <img src={image} alt="" style={{ width: 52, height: 52, borderRadius: 14,
+objectFit: "cover", display: "block" }} />
+     ) : (
+       <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}22`,
 display: "flex", alignItems: "center", justifyContent: "center", color }}>{icon}</div>
+     )}
      <div>
        <div style={{ fontFamily: FONT_BODY, fontSize: 12.5, color: COLORS.textMuted,
 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
@@ -989,13 +1001,17 @@ marginBottom: 4 }}>{title}</div>
 function AmountInput({ value, onChange, placeholder = "0,00", decimals = 2, style }) {
   const [open, setOpen] = useState(false);
   const hasValue = value !== undefined && value !== null && value !== "";
+  const displayValue = hasValue
+    ? (parseBRNumber(value) || 0).toLocaleString("pt-BR", { minimumFractionDigits:
+decimals, maximumFractionDigits: decimals })
+    : placeholder;
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} style={{
         ...inputStyle, ...style, textAlign: "left", cursor: "pointer",
         fontFamily: FONT_MONO, color: hasValue ? COLORS.textPrimary : COLORS.textMuted,
       }}>
-        {hasValue ? value : placeholder}
+        {displayValue}
       </button>
       {open && (
         <AmountKeypadModal value={value || ""} decimals={decimals}
@@ -1299,10 +1315,8 @@ state={state} setState={setState} onBack={() => go("investimentos")}
 showToast={showToast} />}
       {screen.name === "resumo" && <ResumoScreen state={state}
 setState={setState} showToast={showToast} onBack={() => go("home")} />}
-      {screen.name === "projecao" && <ProjecaoScreen state={state} totals={totals}
-onBack={() => go("home")} showToast={showToast} />}
-      {screen.name === "metas" && <MetasScreen state={state} setState={setState}
-totals={totals} onBack={() => go("home")} showToast={showToast} />}
+      {screen.name === "planejamento" && <PlanejamentoScreen state={state}
+setState={setState} totals={totals} onBack={() => go("home")} showToast={showToast} />}
       {screen.name === "recorrencias" && <RecorrenciasScreen state={state} setState={setState}
 onBack={() => go("home")} showToast={showToast} />}
       {screen.name === "config" && <ConfigScreen state={state} setState={setState}
@@ -1487,9 +1501,14 @@ cartão</div>
    {!hasAnything && (
      <div style={{ textAlign: "center", padding: "10px 12px 26px" }}>
       <div style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 1.5,
-marginBottom: 12 }}>
+marginBottom: 8 }}>
        Comece cadastrando sua conta e seus cartões abaixo — a planilha se monta
 em volta do que você tiver.
+      </div>
+      <div style={{ color: COLORS.textMuted, fontSize: 11, lineHeight: 1.4,
+marginBottom: 12 }}>
+       🔒 Tudo fica só neste aparelho — sem login, sem nuvem, sem compartilhar
+senha de banco.
       </div>
       <button onClick={loadDemo} style={{ padding: "10px 16px", borderRadius: 12,
 border: `1px solid ${COLORS.teal}55`, background: `${COLORS.teal}18`, color:
@@ -1524,7 +1543,7 @@ go("cardForm")} />
 
      <SectionLabel>Outros</SectionLabel>
      <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <Tile icon={<Calendar size={21} />} label="Resumo do Mês"
+      <Tile image="icones/resumo-mes.png" label="Resumo do Mês"
 value={monthLabelFull(new Date().getMonth())} valueFont={FONT_DISPLAY} valueSize={20}
        sub="Gastos por categoria" color={COLORS.amber} onClick={() =>
 go("resumo")} />
@@ -1532,12 +1551,10 @@ go("resumo")} />
 value={currency(totals.investTotal)}
        sub={`${state.investments.length} ativo(s)`} color={COLORS.green}
 onClick={() => go("investimentos")} />
-      <Tile icon={<LineChartIcon size={21} />} label="Projeção"
-value={monthLabel(new Date().getMonth()) + " — Dez"} valueFont={FONT_DISPLAY} valueSize={20}
-       color={COLORS.cyan} onClick={() => go("projecao")} />
-      <Tile icon={<Target size={21} />} label="Metas" value={state.goals.length ? `${state.goals.length} meta(s)` : "Nenhuma ainda"}
-       valueFont={FONT_DISPLAY} valueSize={20}
-       color={COLORS.pink} onClick={() => go("metas")} />
+      <Tile icon={<Compass size={21} />} label="Planejamento" value={state.goals.length
+? `${state.goals.length} meta(s)` : "Metas e projeção"} valueFont={FONT_DISPLAY}
+valueSize={20} sub="Metas e projeção" color={COLORS.cyan} onClick={() =>
+go("planejamento")} />
       <Tile icon={<Repeat size={21} />} label="Recorrências" value={(state.recurring || []).filter(r => r.active).length ? `${(state.recurring || []).filter(r => r.active).length} ativa(s)` : "Nenhuma ainda"}
        color={COLORS.orange} onClick={() => go("recorrencias")} />
       <Tile icon={<Settings size={21} />} label="Configurações" value="Perfil, PIN, backup"
@@ -1608,7 +1625,7 @@ placeholder="Ex: Conta principal" style={inputStyle} />
      <div style={{ flex: 1 }}>
        <label style={labelStyle}>Agência</label>
       <input value={agencia} onChange={e => setAgencia(e.target.value)}
-inputMode="numeric" placeholder="0000" style={inputStyle} />
+inputMode="numeric" onFocus={e => e.target.select()} placeholder="0000" style={inputStyle} />
      </div>
      <div style={{ flex: 1.4 }}>
       <label style={labelStyle}>Conta corrente</label>
@@ -1713,16 +1730,16 @@ placeholder="Ex: Cartão do dia a dia" style={inputStyle} />
      <div style={{ width: 100 }}>
        <label style={labelStyle}>Fechamento</label>
        <input value={closingDay} onChange={e =>
-setClosingDay(e.target.value.replace(/\D/g, ""))} inputMode="numeric"
+setClosingDay(e.target.value.replace(/\D/g, ""))} inputMode="numeric" onFocus={e => e.target.select()}
 placeholder="3" style={inputStyle} />
      </div>
      <div style={{ width: 100 }}>
        <label style={labelStyle}>Dia venc.</label>
-       <input value={dueDay} onChange={e => setDueDay(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="10" style={inputStyle} />
+       <input value={dueDay} onChange={e => setDueDay(e.target.value.replace(/\D/g, ""))} inputMode="numeric" onFocus={e => e.target.select()} placeholder="10" style={inputStyle} />
      </div>
     </div>
-    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: -8,
-marginBottom: 4 }}>
+    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 8,
+lineHeight: 1.4, marginBottom: 4 }}>
      O fechamento é o dia em que a fatura "corta" — compras depois dele entram
 na fatura seguinte. Fica normalmente uns dias antes do vencimento.
     </div>
@@ -1875,7 +1892,7 @@ state.categories[0]?.id);
   const [bulkText, setBulkText] = useState("");
   const [showBulk, setShowBulk] = useState(false);
   const [repeatMode, setRepeatMode] = useState("none"); // none | installments | recurring
-  const [installmentsCount, setInstallmentsCount] = useState("2");
+  const [installmentsCount, setInstallmentsCount] = useState("");
   const [occurrences, setOccurrences] = useState("");
   const [fromId, setFromId] = useState(state.accounts[0]?.id || "");
   const [toId, setToId] = useState(state.accounts[1]?.id || "");
@@ -1924,7 +1941,8 @@ ${accName(toId)}`, transferGroupId: groupId },
   const baseCardId = kind === "cartao" ? cardId : null;
 
   if (repeatMode === "installments" && kind !== "entrada") {
-    const n = Math.max(2, parseInt(installmentsCount || "2", 10));
+    const n = parseInt(installmentsCount || "0", 10);
+    if (!n || n < 2) { showToast("Digite o número de parcelas (mínimo 2)"); return; }
     const totalCents = Math.round(value * 100);
     const baseCents = Math.floor(totalCents / n);
     const remainder = totalCents - baseCents * n;
@@ -2147,7 +2165,7 @@ style={repeatModeBtn(repeatMode === "recurring")}>Recorrente</button>
          <AmountInput value={amount} onChange={setAmount} placeholder="0,00" />
          <label style={labelStyle}>Número de parcelas</label>
          <input value={installmentsCount} onChange={e =>
-setInstallmentsCount(e.target.value.replace(/\D/g, ""))} inputMode="numeric"
+setInstallmentsCount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" onFocus={e => e.target.select()}
 placeholder="2" style={inputStyle} />
          {parseBRNumber(amount) > 0 && parseInt(installmentsCount || "0", 10) >= 2
 && (
@@ -2167,7 +2185,7 @@ parseInt(installmentsCount, 10))} — a primeira em {new Date(date +
           <>
             <label style={labelStyle}>Número de vezes (opcional)</label>
             <input value={occurrences} onChange={e =>
-setOccurrences(e.target.value.replace(/\D/g, ""))} inputMode="numeric"
+setOccurrences(e.target.value.replace(/\D/g, ""))} inputMode="numeric" onFocus={e => e.target.select()}
 placeholder="Deixe em branco pra repetir sem parar" style={inputStyle} />
           </>
          )}
@@ -2485,14 +2503,12 @@ function AccountScreen({ id, state, setState, totals, go }) {
 id).sort((a, b) => (a.date < b.date ? 1 : -1)), [state.transactions, id]);
   const [expanded, setExpanded] = useState(new Set());
   const [query, setQuery] = useState("");
+  const [showFuture, setShowFuture] = useState(false);
+  const [showPeriod, setShowPeriod] = useState(false);
   if (!acc) return null;
   const searching = query.trim().length > 0;
   const results = searching ? entries.filter(t => txMatches(t, state.categories, query)) :
 [];
-  const entradas = entries.filter(t => t.kind === "entrada").reduce((s, t) => s +
-t.amount, 0);
-  const saidas = entries.filter(t => t.kind === "saida").reduce((s, t) => s + t.amount,
-0);
 
  const curMonthKey = todayISO().slice(0, 7);
  const groupsMap = {};
@@ -2502,11 +2518,12 @@ t.amount, 0);
    groupsMap[key].push(t);
  });
  const allKeys = Object.keys(groupsMap);
- // Mês atual sempre primeiro e em destaque; futuros (mais próximos primeiro) e passados (mais recentes primeiro) ficam recolhidos
  const futureKeys = allKeys.filter(k => k > curMonthKey).sort();
+ const futureCount = futureKeys.reduce((s, k) => s + groupsMap[k].length, 0);
+ // Mês atual sempre primeiro e em destaque; meses passados (mais recentes primeiro)
+ // ficam recolhidos. Lançamentos futuros saíram daqui — têm janela própria (ver botão acima).
  const pastKeys = allKeys.filter(k => k < curMonthKey).sort().reverse();
- const orderedKeys = [curMonthKey, ...futureKeys, ...pastKeys].filter(k =>
-groupsMap[k]);
+ const orderedKeys = [curMonthKey, ...pastKeys].filter(k => groupsMap[k]);
  const toggle = (k) => setExpanded(prev => { const next = new Set(prev);
 next.has(k) ? next.delete(k) : next.add(k); return next; });
 
@@ -2515,29 +2532,36 @@ next.has(k) ? next.delete(k) : next.add(k); return next; });
     <ScreenHeader title={acc.nickname || acc.bank} color={acc.color} onBack={() =>
 go("home")} onEdit={() => go("accountForm", id)} />
     <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}
-`, borderRadius: 18, padding: 16, marginBottom: 18 }}>
+`, borderRadius: 18, padding: 16, marginBottom: 14 }}>
      <div style={{ fontSize: 12, color: COLORS.textMuted }}>{acc.bank} {acc.agencia
 && `· Ag. ${acc.agencia}`} {acc.conta && `· Cc ${acc.conta}`}</div>
      <div style={{ fontFamily: FONT_MONO, fontSize: 26, fontWeight: 500,
 marginTop: 4 }}>{currency(totals.accountBalances[id] || 0)}</div>
      <div style={{ fontSize: 11.5, color: COLORS.textMuted, marginTop: 2 }}>Saldo
-até hoje</div>
-     {Math.abs((totals.accountProjected?.[id] || 0) - (totals.accountBalances[id] || 0))
-> 0.009 && (
-       <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6 }}>
-        Projetado com lançamentos futuros: <b style={{ fontFamily: FONT_MONO,
-color: (totals.accountProjected[id] || 0) >= 0 ? COLORS.textPrimary :
-COLORS.negative }}>{currency(totals.accountProjected[id] || 0)}</b>
-       </div>
-     )}
-     <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12, color:
-COLORS.textMuted }}>
-       <span>Entradas: <b style={{ color: COLORS.positive, fontFamily:
-FONT_MONO }}>{currency(entradas)}</b></span>
-       <span>Saídas: <b style={{ color: COLORS.negative, fontFamily:
-FONT_MONO }}>{currency(saidas)}</b></span>
-     </div>
+Atual</div>
     </div>
+
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+     <button onClick={() => setShowFuture(true)} style={{ width: "100%", display: "flex",
+alignItems: "center", justifyContent: "space-between", padding: "12px 14px",
+borderRadius: 14, border: `1px solid ${acc.color}55`, background: `${acc.color}15`,
+color: acc.color, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+      <span>📅 Ver lançamentos futuros {futureCount > 0 ? `(${futureCount})` : ""}</span>
+      <ChevronRight size={16} />
+     </button>
+     <button onClick={() => setShowPeriod(true)} style={{ width: "100%", display: "flex",
+alignItems: "center", justifyContent: "space-between", padding: "12px 14px",
+borderRadius: 14, border: `1px solid ${COLORS.border}`, background: COLORS.surface,
+color: COLORS.textPrimary, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+      <span>Entradas e saídas por período</span>
+      <ChevronRight size={16} color={COLORS.textMuted} />
+     </button>
+    </div>
+    {showFuture && <FutureTransactionsModal acc={acc} futureKeys={futureKeys}
+groupsMap={groupsMap} state={state} setState={setState} onClose={() =>
+setShowFuture(false)} />}
+    {showPeriod && <PeriodStatsModal entries={entries} onClose={() =>
+setShowPeriod(false)} />}
     {entries.length > 0 && (
      <input value={query} onChange={e => setQuery(e.target.value)}
 placeholder="Buscar por descrição, categoria ou valor" style={{ ...inputStyle,
@@ -2577,11 +2601,6 @@ t.amount : -t.amount), 0);
           </div>
         ):(
           <>
-           {key === futureKeys[0] && (
-            <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 18,
-marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>Próximos
-lançamentos</div>
-           )}
            {key === pastKeys[0] && (
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 18,
 marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>Meses
@@ -2592,8 +2611,7 @@ alignItems: "center", justifyContent: "space-between", background:
 COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding:
 "10px 12px", marginBottom: isExpanded ? 2 : 6, cursor: "pointer" }}>
             <span style={{ fontSize: 12.5, fontWeight: 600, color:
-COLORS.textMuted }}>{monthLabelFull(parseInt(m, 10) - 1)} de {y} {isFuture ?
-"(futuro)" : ""}</span>
+COLORS.textMuted }}>{monthLabelFull(parseInt(m, 10) - 1)} de {y}</span>
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontFamily: FONT_MONO, fontSize: 12.5, color:
 monthTotal >= 0 ? COLORS.positive : COLORS.textMuted }}>{monthTotal >= 0 ? "+" :
@@ -2613,6 +2631,145 @@ categories={state.categories} state={state} setState={setState} />)}
         </div>
       );
      })}
+    </div>
+  );
+}
+
+// ---------- Lançamentos futuros (janela separada, não mistura com o mês atual/meses anteriores) ----------
+function FutureTransactionsModal({ acc, futureKeys, groupsMap, state, setState, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,15,0.45)",
+zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480,
+margin: "0 auto", maxHeight: "82vh", overflowY: "auto", background: COLORS.surface,
+borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: "18px 16px 28px",
+boxShadow: "0 -8px 30px rgba(20,20,15,0.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}
+>Lançamentos futuros</div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 9,
+background: COLORS.surface2, border: "none", display: "flex", alignItems: "center",
+justifyContent: "center", cursor: "pointer" }}><X size={15} color={COLORS.textMuted} /></button>
+        </div>
+        <div style={{ fontSize: 11.5, color: COLORS.textMuted, marginBottom: 16,
+lineHeight: 1.4 }}>
+         Parcelas e recorrências já lançadas pra meses adiante — não entram na
+leitura do mês atual nem no saldo já consolidado.
+        </div>
+        {futureKeys.length === 0 && (
+         <div style={{ textAlign: "center", color: COLORS.textMuted, fontSize: 13,
+padding: "24px 0" }}>Nenhum lançamento futuro no momento.</div>
+        )}
+        {futureKeys.map(key => {
+          const [y, m] = key.split("-");
+          const monthTotal = groupsMap[key].reduce((s, t) => s + (t.kind === "entrada" ?
+t.amount : -t.amount), 0);
+          return (
+           <div key={key} style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+             <span style={{ fontSize: 12.5, fontWeight: 700, color: acc.color }}
+>{monthLabelFull(parseInt(m, 10) - 1)} de {y}</span>
+             <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: monthTotal >= 0 ?
+COLORS.positive : COLORS.textMuted }}>{monthTotal >= 0 ? "+" : ""}{currency(monthTotal)}</span>
+            </div>
+            {groupsMap[key].map(tx => <TransactionRow key={tx.id} tx={tx}
+categories={state.categories} state={state} setState={setState} />)}
+           </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Entradas e saídas por período (janela separada, com atalhos de intervalo) ----------
+function PeriodStatsModal({ entries, onClose }) {
+  const [preset, setPreset] = useState("30");
+  const [customFrom, setCustomFrom] = useState(todayISO());
+  const [customTo, setCustomTo] = useState(todayISO());
+
+  const range = useMemo(() => {
+    const today = todayISO();
+    if (preset === "custom") return { from: customFrom, to: customTo };
+    if (preset === "ano") return { from: `${today.slice(0, 4)}-01-01`, to: today };
+    const days = parseInt(preset, 10);
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return { from: toLocalISO(d), to: today };
+  }, [preset, customFrom, customTo]);
+
+  const inRange = entries.filter(t => t.date >= range.from && t.date <= range.to);
+  const entradas = inRange.filter(t => t.kind === "entrada").reduce((s, t) => s +
+t.amount, 0);
+  const saidas = inRange.filter(t => t.kind === "saida").reduce((s, t) => s + t.amount, 0);
+
+  const presets = [
+    { id: "30", label: "30 dias" },
+    { id: "60", label: "60 dias" },
+    { id: "90", label: "90 dias" },
+    { id: "ano", label: "Este ano" },
+    { id: "custom", label: "Personalizado" },
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,15,0.45)",
+zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480,
+margin: "0 auto", background: COLORS.surface, borderTopLeftRadius: 22,
+borderTopRightRadius: 22, padding: "18px 16px 28px", boxShadow: "0 -8px 30px rgba(20,20,15,0.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}
+>Entradas e saídas</div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 9,
+background: COLORS.surface2, border: "none", display: "flex", alignItems: "center",
+justifyContent: "center", cursor: "pointer" }}><X size={15} color={COLORS.textMuted} /></button>
+        </div>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16,
+paddingBottom: 2 }}>
+         {presets.map(p => (
+          <button key={p.id} onClick={() => setPreset(p.id)} style={{ padding: "8px 13px",
+borderRadius: 20, border: `1px solid ${preset === p.id ? COLORS.teal :
+COLORS.border}`, background: preset === p.id ? `${COLORS.teal}18` : COLORS.surface,
+color: preset === p.id ? COLORS.teal : COLORS.textMuted, fontSize: 12.5,
+fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+>{p.label}</button>
+         ))}
+        </div>
+        {preset === "custom" && (
+         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1 }}>
+           <label style={labelStyle}>De</label>
+           <DateInput value={customFrom} onChange={setCustomFrom} />
+          </div>
+          <div style={{ flex: 1 }}>
+           <label style={labelStyle}>Até</label>
+           <DateInput value={customTo} onChange={setCustomTo} />
+          </div>
+         </div>
+        )}
+        <div style={{ background: COLORS.surface2, borderRadius: 14, padding: 14 }}>
+         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 12.5, color: COLORS.textMuted }}>Entradas</span>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 14, color: COLORS.positive }}
+>{currency(entradas)}</span>
+         </div>
+         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 12.5, color: COLORS.textMuted }}>Saídas</span>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 14, color: COLORS.negative }}
+>{currency(saidas)}</span>
+         </div>
+         <div style={{ height: 1, background: COLORS.border, margin: "8px 0" }} />
+         <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>Saldo do período</span>
+          <span style={{ fontFamily: FONT_MONO, fontSize: 15, fontWeight: 700, color:
+(entradas - saidas) >= 0 ? COLORS.positive : COLORS.negative }}
+>{currency(entradas - saidas)}</span>
+         </div>
+        </div>
+        <div style={{ fontSize: 10.5, color: COLORS.textMuted, marginTop: 10,
+textAlign: "center" }}>{inRange.length} lançamento{inRange.length === 1 ? "" : "s"}
+no período</div>
+      </div>
     </div>
   );
 }
@@ -3212,7 +3369,9 @@ onClick={() => setType(t.id)} />)}
 
  const investedValue = quoted ? parseBRNumber(quantity) *
 parseBRNumber(buyPrice) : parseBRNumber(appliedValue);
- const finalName = type === "cripto" && name === "Outra" ? customName : name;
+ const finalName = type === "cripto" && name === "Outra" ? customName
+   : (type === "poupanca" && !name.trim()) ? "Poupança"
+   : name;
  const valueChanged = editing && linkedTx && origin === "account" &&
 Math.round(linkedTx.amount * 100) !== Math.round(investedValue * 100);
 
@@ -3371,6 +3530,30 @@ style={selectStyle}>
         <option value="" disabled>Selecione</option>
         {TESOURO_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
        </select>
+       <label style={labelStyle}>Valor aplicado</label>
+       <AmountInput value={appliedValue} onChange={setAppliedValue} placeholder="0,00" />
+     </>
+    )}
+
+    {type === "poupanca" && (
+     <>
+       <label style={labelStyle}>Apelido (opcional)</label>
+       <input value={name} onChange={e => setName(e.target.value)}
+placeholder="Ex: Poupança Itaú" style={inputStyle} />
+       <label style={labelStyle}>Saldo atual</label>
+       <AmountInput value={appliedValue} onChange={setAppliedValue} placeholder="0,00" />
+       <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 6, lineHeight: 1.4 }}>
+        A poupança rende sozinha (sem cotação) — quando quiser atualizar o saldo
+com o rendimento do mês, edite esse valor manualmente.
+       </div>
+     </>
+    )}
+
+    {type === "previdencia" && (
+     <>
+       <label style={labelStyle}>Nome do plano</label>
+       <input value={name} onChange={e => setName(e.target.value)}
+placeholder="Ex: Previdência PGBL Banco X" style={inputStyle} />
        <label style={labelStyle}>Valor aplicado</label>
        <AmountInput value={appliedValue} onChange={setAppliedValue} placeholder="0,00" />
      </>
@@ -3712,13 +3895,17 @@ r.sum)}`}
   );
 }
 
-// ---------- Projeção ----------
-function ProjecaoScreen({ state, totals, onBack, showToast }) {
+// ---------- Planejamento (Metas + Projeção, integradas) ----------
+function PlanejamentoScreen({ state, setState, totals, onBack, showToast }) {
+  const [tab, setTab] = useState("metas");
+  const [showNextYear, setShowNextYear] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
+
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth();
   const nextYear = curYear + 1;
-  const [showNextYear, setShowNextYear] = useState(false);
 
   const buildMonthsFor = (year, startMonth) => {
     const arr = [];
@@ -3729,7 +3916,6 @@ function ProjecaoScreen({ state, totals, onBack, showToast }) {
 t.date?.slice(0, 7) === key);
       const entradasMes = state.transactions.filter(t => t.kind === "entrada" &&
 t.date?.slice(0, 7) === key);
-      // Gastos de cartão contam pela fatura (considerando o fechamento de cada cartão), não pelo mês da compra
       const cartaoMes = state.transactions.filter(t => {
         if (t.kind !== "cartao") return false;
         const card = state.cards.find(c => c.id === t.cardId);
@@ -3754,7 +3940,6 @@ temLancado, saldo: rendaProjetada - gastosReais });
    [state.transactions, state.cards, state.profile.incomeFixed, state.profile.incomeVariable, curMonth, curYear]);
   const monthsProximoAno = useMemo(() => buildMonthsFor(nextYear, 0),
    [state.transactions, state.cards, state.profile.incomeFixed, state.profile.incomeVariable, nextYear]);
-  const months = monthsEsteAno; // mantém nome usado no export
 
   const sumMonths = (arr) => arr.reduce((acc, mo) => ({ renda: acc.renda +
 mo.rendaProjetada, gastos: acc.gastos + mo.gastosReais }), { renda: 0, gastos: 0 });
@@ -3763,6 +3948,58 @@ mo.rendaProjetada, gastos: acc.gastos + mo.gastosReais }), { renda: 0, gastos: 0
   const acumuladoAteProximo = { renda: anual.renda + anualProximo.renda, gastos:
 anual.gastos + anualProximo.gastos };
 
+  // Elo entre as duas abas: sobra média projetada (pro lado de Metas) e quanto
+  // as metas com prazo pedem por mês (pro lado de Projeção).
+  const avgMonthlySurplus = monthsEsteAno.length > 0
+    ? monthsEsteAno.reduce((s, mo) => s + mo.saldo, 0) / monthsEsteAno.length : 0;
+  const totalMonthlyNeeded = state.goals.reduce((s, g) => {
+    if (!g.dueDate) return s;
+    const monthsLeft = monthsBetween(todayISO(), g.dueDate);
+    const remaining = Math.max(0, g.target - (g.saved || 0));
+    return s + (monthsLeft > 0 ? remaining / monthsLeft : remaining);
+  }, 0);
+
+  if (formOpen) {
+    return <GoalForm state={state} setState={setState} goal={editingGoal}
+onBack={() => { setFormOpen(false); setEditingGoal(null); }} showToast={showToast} />;
+  }
+
+  return (
+    <div>
+      <ScreenHeader title="Planejamento" color={COLORS.cyan} onBack={onBack} />
+      <div style={{ display: "flex", background: COLORS.surface2, borderRadius: 12,
+padding: 3, marginBottom: 18 }}>
+        <button onClick={() => setTab("metas")} style={{ flex: 1, textAlign: "center",
+padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13,
+fontWeight: 600, background: tab === "metas" ? COLORS.surface : "transparent",
+color: tab === "metas" ? COLORS.textPrimary : COLORS.textMuted, boxShadow: tab ===
+"metas" ? "0 1px 4px rgba(20,20,15,0.1)" : "none" }}>Metas</button>
+        <button onClick={() => setTab("projecao")} style={{ flex: 1, textAlign: "center",
+padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13,
+fontWeight: 600, background: tab === "projecao" ? COLORS.surface : "transparent",
+color: tab === "projecao" ? COLORS.textPrimary : COLORS.textMuted, boxShadow: tab ===
+"projecao" ? "0 1px 4px rgba(20,20,15,0.1)" : "none" }}>Projeção</button>
+      </div>
+      {tab === "metas" ? (
+        <MetasContent state={state} setState={setState} showToast={showToast}
+          avgMonthlySurplus={avgMonthlySurplus} totalMonthlyNeeded={totalMonthlyNeeded}
+          onNewGoal={() => setFormOpen(true)}
+          onEditGoal={(g) => { setEditingGoal(g); setFormOpen(true); }} />
+      ) : (
+        <ProjecaoContent state={state} monthsEsteAno={monthsEsteAno}
+          monthsProximoAno={monthsProximoAno} anual={anual}
+          acumuladoAteProximo={acumuladoAteProximo} curYear={curYear} nextYear={nextYear}
+          showNextYear={showNextYear} setShowNextYear={setShowNextYear}
+          totalMonthlyNeeded={totalMonthlyNeeded} avgMonthlySurplus={avgMonthlySurplus} />
+      )}
+    </div>
+  );
+}
+
+// ---------- Projeção ----------
+function ProjecaoContent({ state, monthsEsteAno, monthsProximoAno, anual,
+acumuladoAteProximo, curYear, nextYear, showNextYear, setShowNextYear,
+totalMonthlyNeeded, avgMonthlySurplus }) {
  const exportXLSX = async () => {
    const rows = state.transactions.map(t => ({
     Data: t.date,
@@ -3790,7 +4027,6 @@ state.cards.find(c => c.id === t.cardId)?.cardLabel || "") : "",
 
  return (
   <div>
-   <ScreenHeader title="Projeção" color={COLORS.cyan} onBack={onBack} />
    <div style={{ background: `linear-gradient(135deg, ${COLORS.cyan}20, ${COLORS.surface})`, border: `1px solid ${COLORS.cyan}44`, borderRadius: 18,
 padding: 16, marginBottom: 18 }}>
      <div style={{ fontSize: 12, color: COLORS.textMuted }}>Projeção até
@@ -3805,6 +4041,15 @@ FONT_MONO }}>{currency(anual.renda)}</b></span>
         <span>Gastos: <b style={{ color: COLORS.textPrimary, fontFamily:
 FONT_MONO }}>{currency(anual.gastos)}</b></span>
       </div>
+      {totalMonthlyNeeded > 0 && (
+       <div style={{ fontSize: 12, marginTop: 10, paddingTop: 10, borderTop: `1px
+solid ${COLORS.cyan}33`, color: avgMonthlySurplus >= totalMonthlyNeeded ?
+COLORS.positive : COLORS.negative }}>
+        🎯 Suas metas com prazo (aba Metas) pedem <b>{currency(totalMonthlyNeeded)}/mês</b>
+        {avgMonthlySurplus >= totalMonthlyNeeded ? " — sua sobra média projetada cobre isso." :
+` — R$ acima da sua sobra média projetada (${currency(avgMonthlySurplus)}/mês).`}
+       </div>
+      )}
       <div style={{ fontSize: 10.5, color: COLORS.textMuted, marginTop: 8, lineHeight:
 1.4 }}>
         Parcelas e recorrências com prazo já entram nos meses futuros (respeitando
@@ -4191,25 +4436,37 @@ function monthsBetween(fromISO, toISO) {
   return Math.max(0, (ty - fy) * 12 + (tm - fm));
 }
 
-function MetasScreen({ state, setState, totals, onBack, showToast }) {
+function MetasContent({ state, setState, showToast, avgMonthlySurplus,
+totalMonthlyNeeded, onNewGoal, onEditGoal }) {
  const [confirmingId, setConfirmingId] = useState(null);
  const del = (id) => { setState({ ...state, goals: state.goals.filter(g => g.id !== id) });
 setConfirmingId(null); };
- const [formOpen, setFormOpen] = useState(false);
- const [editingGoal, setEditingGoal] = useState(null);
-
- if (formOpen) {
-   return <GoalForm state={state} setState={setState} goal={editingGoal} onBack={() => { setFormOpen(false); setEditingGoal(null); }} showToast={showToast} />;
- }
 
  return (
    <div>
-    <ScreenHeader title="Metas" color={COLORS.pink} onBack={onBack} />
     {state.goals.length === 0 && (
      <div style={{ textAlign: "center", color: COLORS.textMuted, fontSize: 13,
 padding: "20px 0", lineHeight: 1.5 }}>
        Nenhuma meta ainda. Defina um objetivo — uma viagem, uma reserva, o que for
 — e acompanhe se está no caminho certo.
+     </div>
+    )}
+    {state.goals.length > 0 && avgMonthlySurplus != null && (
+     <div style={{ background: `${COLORS.pink}12`, border: `1px solid ${COLORS.pink}33`,
+borderRadius: 14, padding: 14, marginBottom: 16 }}>
+      <div style={{ fontSize: 12, color: COLORS.textMuted }}>Sobra média
+projetada (aba Projeção)</div>
+      <div style={{ fontFamily: FONT_MONO, fontSize: 20, fontWeight: 700, color:
+avgMonthlySurplus >= 0 ? COLORS.textPrimary : COLORS.negative }}
+>{currency(avgMonthlySurplus)}/mês</div>
+      {totalMonthlyNeeded > 0 && (
+       <div style={{ fontSize: 11.5, marginTop: 6, color: avgMonthlySurplus >=
+totalMonthlyNeeded ? COLORS.positive : COLORS.negative }}>
+        {avgMonthlySurplus >= totalMonthlyNeeded
+          ? `Cobre os ${currency(totalMonthlyNeeded)}/mês que suas metas com prazo pedem.`
+          : `Suas metas com prazo pedem ${currency(totalMonthlyNeeded)}/mês — ${currency(totalMonthlyNeeded - avgMonthlySurplus)} acima da sua sobra média.`}
+       </div>
+      )}
      </div>
     )}
     {state.goals.map(g => {
@@ -4219,11 +4476,13 @@ padding: "20px 0", lineHeight: 1.5 }}>
      const remaining = Math.max(0, g.target - (g.saved || 0));
      const monthlyNeeded = monthsLeft && monthsLeft > 0 ? remaining /
 monthsLeft : null;
+     const etaMonths = !g.dueDate && avgMonthlySurplus > 0 && remaining > 0
+       ? Math.ceil(remaining / avgMonthlySurplus) : null;
      return (
        <div key={g.id} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 14, marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems:
 "flex-start" }}>
-         <div onClick={() => { setEditingGoal(g); setFormOpen(true); }}
+         <div onClick={() => onEditGoal(g)}
 style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: `${COLORS.pink}22`, display: "flex", alignItems: "center", justifyContent: "center" }}
 ><Icon size={16} color={COLORS.pink} /></div>
@@ -4252,11 +4511,12 @@ COLORS.pink }} />
 fontSize: 11, color: COLORS.textMuted }}>
          <span>{pct.toFixed(0)}% da meta</span>
          {monthlyNeeded != null && <span>Precisa guardar ~{currency(monthlyNeeded)}/mês</span>}
+         {etaMonths != null && <span>No ritmo atual, bate em ~{etaMonths} mês{etaMonths === 1 ? "" : "es"}</span>}
          </div>
         </div>
       );
      })}
-     <button onClick={() => setFormOpen(true)} style={{ width: "100%", padding:
+     <button onClick={onNewGoal} style={{ width: "100%", padding:
 "13px 0", borderRadius: 14, border: "none", background: COLORS.pink, color:
 "#1A0512", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>+ Nova meta</button>
     </div>
@@ -4372,6 +4632,27 @@ perfil</button>
 
     </Section>
 
+    <Section title="🔒 Privacidade e segurança">
+     <div style={{ fontSize: 12.5, color: COLORS.textMuted, lineHeight: 1.6 }}>
+      <p style={{ margin: "0 0 8px" }}>
+       Seus lançamentos, saldos e investimentos ficam guardados <b style={{ color:
+COLORS.textPrimary }}>só neste aparelho</b> — não existe login, nuvem ou servidor
+por trás do app. Nada do que você digita aqui sai daqui.
+      </p>
+      <p style={{ margin: "0 0 8px" }}>
+       Isso também significa que o app <b style={{ color: COLORS.textPrimary }}
+>nunca pede senha de banco</b> nem acesso à sua conta — diferente de apps que
+sincronizam automaticamente com instituições financeiras.
+      </p>
+      <p style={{ margin: 0 }}>
+       Como bônus, sem servidor não tem risco de um bug de sincronização bagunçar
+seu saldo ou apagar seu histórico — o que já aconteceu com usuários de outros
+apps financeiros. Pra levar seus dados pra outro aparelho ou guardar uma cópia,
+use o Backup logo abaixo.
+      </p>
+     </div>
+    </Section>
+
     <Section title="Cotações automáticas">
      <div style={{ fontSize: 12.5, color: COLORS.textMuted, lineHeight: 1.5, marginBottom: 4 }}>
       Criptomoedas são cotadas automaticamente, sem configuração. Pra ações e
@@ -4401,7 +4682,7 @@ lápis.
      ):(
        <>
         <label style={labelStyle}>Criar PIN (mín. 4 dígitos)</label>
-        <input value={pinSetup} onChange={e => setPinSetup(e.target.value.replace(/\D/g, ""))} inputMode="numeric" style={inputStyle} placeholder="••••" />
+        <input value={pinSetup} onChange={e => setPinSetup(e.target.value.replace(/\D/g, ""))} inputMode="numeric" onFocus={e => e.target.select()} style={inputStyle} placeholder="••••" />
         <button onClick={savePin} style={saveBtnStyle(COLORS.indigo)}>Ativar PIN</button>
        </>
      )}
