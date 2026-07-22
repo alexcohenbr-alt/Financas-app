@@ -325,10 +325,16 @@ function invoiceMonthOf(dateISO, closingDay) {
   return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
 }
 // Gera as ocorrências de recorrências que ainda não existem, até o mês atual (pega meses "atrasados" desde a última abertura do app)
+// Meses à frente que uma recorrência é pré-gerada, pra aparecer como "próximo lançamento"
+// nas contas/projeção antes mesmo do mês chegar (não só quando já venceu).
+const RECURRING_MONTHS_AHEAD = 3;
+
 function generateMissingRecurring(state) {
   const now = new Date();
-  const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,
-"0")}`;
+  const curY = now.getFullYear(), curM = now.getMonth() + 1;
+  let targetY = curY, targetM = curM + RECURRING_MONTHS_AHEAD;
+  while (targetM > 12) { targetM -= 12; targetY += 1; }
+  const targetKey = `${targetY}-${String(targetM).padStart(2, "0")}`;
   let transactions = state.transactions;
   let changed = false;
   (state.recurring || []).filter(r => r.active).forEach(rule => {
@@ -336,10 +342,10 @@ function generateMissingRecurring(state) {
     if (existing.length === 0) return;
     if (rule.totalOccurrences && existing.length >= rule.totalOccurrences) return;
     const lastKey = existing.map(t => t.date.slice(0, 7)).sort().pop();
-    if (lastKey >= curKey) return;
+    if (lastKey >= targetKey) return;
     let [y, m] = lastKey.split("-").map(Number);
     let count = existing.length;
-    while (`${y}-${String(m).padStart(2, "0")}` < curKey) {
+    while (`${y}-${String(m).padStart(2, "0")}` < targetKey) {
       if (rule.totalOccurrences && count >= rule.totalOccurrences) break;
       m += 1;
       if (m > 12) { m = 1; y += 1; }
@@ -362,7 +368,45 @@ date: dateISO, description: rule.description, recurringId: rule.id }];
   return changed ? transactions : state.transactions;
 }
 
-const STORAGE_KEY = "financas-v2";
+// Gera o pagamento automático de faturas já fechadas e vencidas, pros cartões
+// marcados com "débito automático" — mesmo formato de um pagamento manual, só que criado sozinho.
+function generateAutoDebitPayments(state) {
+  const todayStr = todayISO();
+  let transactions = state.transactions;
+  let changed = false;
+  state.cards.forEach(card => {
+    if (!card.autoDebit || !card.autoDebitAccountId) return;
+    const cardTx = transactions.filter(t => t.kind === "cartao" && t.cardId === card.id);
+    if (cardTx.length === 0) return;
+    const openInvoice = invoiceMonthOf(todayStr, card.closingDay);
+    const invoiceKeys = [...new Set(cardTx.map(t => invoiceMonthOf(t.date,
+card.closingDay)))].filter(k => k < openInvoice);
+    invoiceKeys.forEach(key => {
+      const alreadyPaid = transactions.some(t => t.paidCardId === card.id && t.paidInvoice
+=== key);
+      if (alreadyPaid) return;
+      const [y, m] = key.split("-").map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const dueDay = Math.min(card.dueDay || 1, lastDay);
+      const dueDateStr = `${y}-${String(m).padStart(2, "0")}-${String(dueDay).padStart(2,
+"0")}`;
+      if (dueDateStr > todayStr) return; // ainda não venceu
+      const total = cardTx.filter(t => invoiceMonthOf(t.date, card.closingDay) === key)
+.reduce((s, t) => s + t.amount, 0);
+      if (total <= 0) return;
+      const monthName = monthLabel(m - 1);
+      transactions = [...transactions, {
+        id: uid(), kind: "saida", accountId: card.autoDebitAccountId, cardId: null,
+        categoryId: "fatura_pagamento", amount: Math.round(total * 100) / 100,
+        date: dueDateStr, description: `Débito automático — fatura ${card.nickname
+|| card.cardLabel} (${monthName})`,
+        paidCardId: card.id, paidInvoice: key, autoDebit: true,
+      }];
+      changed = true;
+    });
+  });
+  return changed ? transactions : state.transactions;
+}
 const APP_VERSION = "1.4.0";
 // Nome de quem detém os direitos do app (independente do perfil de quem usa) — troque aqui quando decidir o nome definitivo/empresa.
 const APP_AUTHOR = "Alex Cohen";
@@ -857,7 +901,7 @@ function iconBtnStyle(color) {
 background: `${color}18`, color, display: "flex", alignItems: "center", justifyContent:
 "center", cursor: "pointer" };
 }
-function Tile({ icon, label, value, sub, color, onClick }) {
+function Tile({ icon, label, value, sub, color, onClick, valueFont, valueSize }) {
   return (
     <button onClick={onClick} style={{
      background: COLORS.surface, border: `1px solid ${COLORS.border}`,
@@ -870,8 +914,9 @@ display: "flex", alignItems: "center", justifyContent: "center", color }}>{icon}
      <div>
        <div style={{ fontFamily: FONT_BODY, fontSize: 12.5, color: COLORS.textMuted,
 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
-       <div style={{ fontFamily: FONT_MONO, fontSize: 18, fontWeight: 500, color:
-COLORS.textPrimary, marginTop: 2 }}>{value}</div>
+       <div style={{ fontFamily: valueFont || FONT_MONO, fontSize: valueSize || 18,
+fontWeight: valueFont === FONT_DISPLAY ? 700 : 500, color: COLORS.textPrimary,
+marginTop: 2 }}>{value}</div>
        {sub && <div style={{ fontFamily: FONT_BODY, fontSize: 11.5, color:
 COLORS.textMuted, marginTop: 2 }}>{sub}</div>}
      </div>
@@ -1163,7 +1208,8 @@ function App() {
 
  useEffect(() => {
    if (!loaded) return;
-   const nextTx = generateMissingRecurring(state);
+   let nextTx = generateMissingRecurring(state);
+   nextTx = generateAutoDebitPayments({ ...state, transactions: nextTx });
    if (nextTx !== state.transactions) setState({ ...state, transactions: nextTx });
    // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [loaded]);
@@ -1468,7 +1514,7 @@ go("cardForm")} />
      <SectionLabel>Outros</SectionLabel>
      <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <Tile icon={<Calendar size={21} />} label="Resumo do Mês"
-value={monthLabelFull(new Date().getMonth())}
+value={monthLabelFull(new Date().getMonth())} valueFont={FONT_DISPLAY} valueSize={20}
        sub="Gastos por categoria" color={COLORS.amber} onClick={() =>
 go("resumo")} />
       <Tile icon={<Coins size={21} />} label="Investimentos"
@@ -1476,9 +1522,10 @@ value={currency(totals.investTotal)}
        sub={`${state.investments.length} ativo(s)`} color={COLORS.green}
 onClick={() => go("investimentos")} />
       <Tile icon={<LineChartIcon size={21} />} label="Projeção"
-value={monthLabel(new Date().getMonth()) + " — Dez"}
+value={monthLabel(new Date().getMonth()) + " — Dez"} valueFont={FONT_DISPLAY} valueSize={20}
        color={COLORS.cyan} onClick={() => go("projecao")} />
       <Tile icon={<Target size={21} />} label="Metas" value={state.goals.length ? `${state.goals.length} meta(s)` : "Nenhuma ainda"}
+       valueFont={FONT_DISPLAY} valueSize={20}
        color={COLORS.pink} onClick={() => go("metas")} />
       <Tile icon={<Repeat size={21} />} label="Recorrências" value={(state.recurring || []).filter(r => r.active).length ? `${(state.recurring || []).filter(r => r.active).length} ativa(s)` : "Nenhuma ainda"}
        color={COLORS.orange} onClick={() => go("recorrencias")} />
@@ -1594,6 +1641,8 @@ BANKS.includes(editing.institution) ? editing.institution : "");
  const [limit, setLimit] = useState(String(editing?.limit ?? ""));
  const [closingDay, setClosingDay] = useState(String(editing?.closingDay ?? ""));
  const [dueDay, setDueDay] = useState(String(editing?.dueDay ?? ""));
+ const [autoDebit, setAutoDebit] = useState(editing?.autoDebit || false);
+ const [autoDebitAccountId, setAutoDebitAccountId] = useState(editing?.autoDebitAccountId || state.accounts[0]?.id || "");
  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const save = () => {
@@ -1602,12 +1651,14 @@ BANKS.includes(editing.institution) ? editing.institution : "");
     if (editing) {
       const next = { ...state, cards: state.cards.map(c => c.id === id ? { ...c, institution:
 finalInst, cardLabel, brand, nickname, limit: parseBRNumber(limit), closingDay:
-parseInt(closingDay || "0", 10), dueDay: parseInt(dueDay || "0", 10) } : c) };
+parseInt(closingDay || "0", 10), dueDay: parseInt(dueDay || "0", 10),
+autoDebit, autoDebitAccountId: autoDebit ? autoDebitAccountId : null } : c) };
       setState(next); showToast("Cartão atualizado");
     } else {
       const card = { id: uid(), institution: finalInst, cardLabel, brand, nickname, limit:
 parseBRNumber(limit), closingDay: parseInt(closingDay || "0", 10), dueDay:
-parseInt(dueDay || "0", 10), color: colorFor(state.cards.length + 3) };
+parseInt(dueDay || "0", 10), color: colorFor(state.cards.length + 3),
+autoDebit, autoDebitAccountId: autoDebit ? autoDebitAccountId : null };
       setState({ ...state, cards: [...state.cards, card] }); showToast("Cartão cadastrado");
     }
     onBack();
@@ -1664,6 +1715,31 @@ marginBottom: 4 }}>
      O fechamento é o dia em que a fatura "corta" — compras depois dele entram
 na fatura seguinte. Fica normalmente uns dias antes do vencimento.
     </div>
+
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14,
+padding: "12px 14px", borderRadius: 12, border: `1px solid ${COLORS.border}`,
+background: COLORS.surface2 }}>
+     <input type="checkbox" checked={autoDebit} onChange={e =>
+setAutoDebit(e.target.checked)} style={{ width: 18, height: 18, accentColor:
+COLORS.cartao }} />
+     <div>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>Débito automático</div>
+      <div style={{ fontSize: 11, color: COLORS.textMuted }}>No dia do
+vencimento, a fatura é paga sozinha na conta escolhida</div>
+     </div>
+    </div>
+    {autoDebit && (
+     <>
+      <label style={labelStyle}>Conta debitada</label>
+      <select value={autoDebitAccountId} onChange={e =>
+setAutoDebitAccountId(e.target.value)} style={selectStyle}>
+       {state.accounts.length === 0 && <option value="">Cadastre uma conta
+primeiro</option>}
+       {state.accounts.map(a => <option key={a.id} value={a.id}>{a.nickname ||
+a.bank}</option>)}
+      </select>
+     </>
+    )}
 
      <button onClick={save} style={saveBtnStyle(COLORS.cartao)}>{editing ? "Salvar alterações" : "Cadastrar cartão"}</button>
      {editing && (
@@ -2605,6 +2681,12 @@ size={13} /> Fecha em {daysToClose} dia{daysToClose === 1 ? "" : "s"} (dia
        <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar
 size={13} /> Vence em {daysToDue} dia{daysToDue === 1 ? "" : "s"} (dia
 {card.dueDay})</span>
+      )}
+      {card.autoDebit && card.autoDebitAccountId && (
+       <span style={{ display: "flex", alignItems: "center", gap: 6, color: card.color,
+fontWeight: 600 }}><Repeat size={13} /> Débito automático — {(state.accounts.find(a =>
+a.id === card.autoDebitAccountId)?.nickname) || (state.accounts.find(a => a.id ===
+card.autoDebitAccountId)?.bank) || "conta"}</span>
       )}
      </div>
     </div>
@@ -4032,16 +4114,43 @@ function RecorrenciasScreen({ state, setState, onBack, showToast }) {
     {active.length === 0 && <div style={{ fontSize: 13, color: COLORS.textMuted, padding: "8px 0" }}>Nenhuma recorrência ativa no momento.</div>}
     {active.map(r => {
       const count = state.transactions.filter(t => t.recurringId === r.id).length;
+      const cat = state.categories.find(c => c.id === r.categoryId) || { label:
+"Outros", color: "#94A3B8", icon: "MoreHorizontal" };
+      const CatIcon = ICONS[cat.icon] || MoreHorizontal;
+      const isCard = r.kind === "cartao";
+      const card = isCard ? state.cards.find(c => c.id === r.cardId) : null;
+      const acc = !isCard ? state.accounts.find(a => a.id === r.accountId) : null;
+      const sourceLabel = isCard ? (card?.nickname || card?.cardLabel || "Cartão") :
+(acc?.nickname || acc?.bank || "Conta");
+      const sourceColor = isCard ? (card?.color || COLORS.cartao) : (acc?.color ||
+COLORS.orange);
       return (
-        <div key={r.id} style={{ padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
-         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{r.description}</div>
-            <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-             {label(r)} · {r.kind === "entrada" ? "entrada" : r.kind === "saida" ? "saída" : "cartão"} · {r.totalOccurrences ? `${count} de ${r.totalOccurrences} vezes` : `todo dia ${r.dayOfMonth}, sem prazo`}
+        <div key={r.id} style={{ padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+         <div style={{ display: "flex", justifyContent: "space-between", alignItems:
+"flex-start", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 11, background:
+`${cat.color}22`, display: "flex", alignItems: "center", justifyContent: "center",
+flexShrink: 0 }}><CatIcon size={17} color={cat.color} /></div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.description}</div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 4,
+marginTop: 4, background: `${sourceColor}18`, borderRadius: 8, padding: "2px 8px" }}>
+                {isCard ? <CreditCard size={11} color={sourceColor} /> : <Wallet
+size={11} color={sourceColor} />}
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: sourceColor }}
+>{sourceLabel}</span>
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
+               {r.kind === "entrada" ? "Entrada" : r.kind === "saida" ? "Saída" :
+"Cartão"} · {r.totalOccurrences ? `${count} de ${r.totalOccurrences} vezes` : `todo
+dia ${r.dayOfMonth}, sem prazo`}
+              </div>
             </div>
           </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 13.5, fontWeight: 600, color: r.kind === "entrada" ? COLORS.positive : COLORS.textPrimary }}>{currency(r.amount)}</div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 14, fontWeight: 700, color:
+r.kind === "entrada" ? COLORS.positive : COLORS.textPrimary, flexShrink: 0 }}
+>{currency(r.amount)}</div>
          </div>
          {confirmingId === r.id ? (
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -4049,7 +4158,7 @@ function RecorrenciasScreen({ state, setState, onBack, showToast }) {
             <button onClick={() => setConfirmingId(null)} style={{ ...saveBtnStyle(COLORS.surface2), marginTop: 0, flex: 1, padding: "8px 0", fontSize: 12.5 }}>Voltar</button>
           </div>
          ):(
-          <button onClick={() => setConfirmingId(r.id)} style={{ marginTop: 6, background: "none", border: "none", color: COLORS.negative, fontSize: 11.5, cursor: "pointer", padding: 0 }}>Cancelar (mantém o que já passou)</button>
+          <button onClick={() => setConfirmingId(r.id)} style={{ marginTop: 8, background: "none", border: "none", color: COLORS.negative, fontSize: 11.5, cursor: "pointer", padding: 0 }}>Cancelar (mantém o que já passou)</button>
          )}
         </div>
       );
