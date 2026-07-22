@@ -953,12 +953,13 @@ justifyContent: "center",
 function HomeTile({ image, label, onClick }) {
   return (
     <button onClick={onClick} style={{
-      position: "relative", border: "none", padding: 0, cursor: "pointer",
+      position: "relative", border: "none", padding: 0, margin: 0, cursor: "pointer",
       borderRadius: 20, overflow: "hidden", aspectRatio: "1 / 1.22",
-      background: COLORS.surface2, width: "100%", display: "block",
+      background: "#F6EEDD", width: "100%", display: "block",
+      WebkitAppearance: "none", appearance: "none", outline: "none",
     }}>
-      <img src={image} alt="" style={{ position: "absolute", inset: 0, width: "100%",
-height: "100%", objectFit: "cover" }} />
+      <img src={image} alt="" style={{ position: "absolute", inset: -1, width: "calc(100% + 2px)",
+height: "calc(100% + 2px)", objectFit: "cover", display: "block", borderRadius: 20 }} />
       <div style={{ position: "absolute", left: 8, right: 8, bottom: 12, textAlign: "center",
         color: "#fff", fontSize: 14.5, fontWeight: 800,
         textShadow: "0 1px 3px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)" }}>
@@ -1462,9 +1463,6 @@ fontSize: 20, fontFamily: FONT_MONO, cursor: "pointer", display: "flex", alignIt
 
 // ---------- Home ----------
 function HomeScreen({ state, setState, totals, chartData, go, showToast }) {
-  const hasAnything = state.accounts.length || state.cards.length;
-  const loadDemo = () => { setState(seedDemoData()); showToast("Dados fictícios carregados"); };
-
   const now = new Date();
   const todayDow = now.getDay(); // 0=Dom ... 6=Sáb
   const dowLetters = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -1502,36 +1500,7 @@ function HomeScreen({ state, setState, totals, chartData, go, showToast }) {
      </div>
     </div>
 
-    {chartData.length > 0 && (
-     <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "16px 8px 8px", marginBottom: 20 }}
->
-       <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginBottom: 8,
-paddingLeft: 8 }}>Entradas x Gastos (6 meses)</div>
-       <SimpleLineChart data={chartData} height={160} />
-     </div>
-    )}
-
-   {!hasAnything && (
-     <div style={{ textAlign: "center", padding: "4px 12px 22px" }}>
-      <div style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 1.5,
-marginBottom: 8 }}>
-       Comece cadastrando sua conta e seus cartões — a planilha se monta
-em volta do que você tiver.
-      </div>
-      <div style={{ color: COLORS.textMuted, fontSize: 11, lineHeight: 1.4,
-marginBottom: 12 }}>
-       🔒 Tudo fica só neste aparelho — sem login, sem nuvem, sem compartilhar
-senha de banco.
-      </div>
-      <button onClick={loadDemo} style={{ padding: "10px 16px", borderRadius: 12,
-border: `1px solid ${COLORS.teal}55`, background: `${COLORS.teal}18`, color:
-COLORS.teal, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-       Carregar dados fictícios pra testar
-      </button>
-     </div>
-   )}
-
-    <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+    <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 4 }}>
      <HomeTile image="icones/bancos.png" label="Bancos" onClick={() => go("bancos")} />
      <HomeTile image="icones/cartoes.png" label="Cartões" onClick={() => go("cartoes")} />
      <HomeTile image="icones/investimentos.png" label="Investimentos" onClick={() => go("investimentos")} />
