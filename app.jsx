@@ -58,6 +58,7 @@ const Shield = (p) => <EmojiIcon {...p} emoji="🛡️" />;
 const TrendingDown = (p) => <EmojiIcon {...p} emoji="📉" />;
 const Compass = (p) => <EmojiIcon {...p} emoji="🧭" />;
 const PiggyBank = (p) => <EmojiIcon {...p} emoji="🐷" />;
+const Landmark = (p) => <EmojiIcon {...p} emoji="🏛️" />;
 const Sunrise = (p) => <EmojiIcon {...p} emoji="🌅" />;
 
 /* ---------- Gráfico simples próprio (sem dependência externa) ---------- */
@@ -917,7 +918,7 @@ borderRadius: 18, padding: 16,
 width: "100%",
     }}>
      {image ? (
-       <img src={image} alt="" style={{ width: 52, height: 52, borderRadius: 14,
+       <img src={image} alt="" style={{ width: 64, height: 64, borderRadius: 16,
 objectFit: "cover", display: "block" }} />
      ) : (
        <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}22`,
@@ -1296,6 +1297,12 @@ COLORS.textPrimary, fontFamily: FONT_BODY, paddingBottom: 40 }}>
 totals={totals} chartData={chartData} go={go} showToast={showToast} />}
       {screen.name === "novo" && <NovoLancamento state={state}
 setState={setState} onBack={() => go("home")} showToast={showToast} />}
+      {screen.name === "bancos" && <BancosScreen state={state} setState={setState}
+totals={totals} go={go} showToast={showToast} />}
+      {screen.name === "cartoes" && <CartoesScreen state={state} setState={setState}
+totals={totals} go={go} showToast={showToast} />}
+      {screen.name === "patrimonio" && <PatrimonioScreen state={state}
+totals={totals} go={go} />}
       {screen.name === "account" && <AccountScreen id={screen.id} state={state}
 setState={setState} totals={totals} go={go} />}
       {screen.name === "card" && <CardScreen id={screen.id} state={state}
@@ -1441,34 +1448,36 @@ function HomeScreen({ state, setState, totals, chartData, go, showToast }) {
   const consolidada = totals.totalContas + totals.investTotal - totals.totalCartoes;
   const hasAnything = state.accounts.length || state.cards.length;
   const loadDemo = () => { setState(seedDemoData()); showToast("Dados fictícios carregados"); };
+  const recorrenciasAtivas = (state.recurring || []).filter(r => r.active);
+  const recContaCount = recorrenciasAtivas.filter(r => r.kind !== "cartao").length;
+  const recCartaoCount = recorrenciasAtivas.filter(r => r.kind === "cartao").length;
   return (
    <div>
-     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: COLORS.textMuted }}
->
-       {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit",
-month: "long" })}
+    <div style={{
+      background: "linear-gradient(160deg, #3B4CC8, #2E3AA8)", color: "#fff",
+      borderRadius: 22, padding: "18px 20px 22px", marginBottom: 16,
+    }}>
+     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div>
+       <div style={{ fontFamily: FONT_BODY, fontSize: 12.5, opacity: 0.78 }}>
+        {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+       </div>
+       <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, marginTop: 2, opacity: 0.9 }}>Finanças</div>
       </div>
-      <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 26,
-marginTop: 4 }}>Finanças</div>
+      <button onClick={() => go("novo")} style={{
+        width: 40, height: 40, borderRadius: 13, background: "rgba(255,255,255,0.18)",
+        border: "none", color: "#fff", display: "flex", alignItems: "center",
+        justifyContent: "center", cursor: "pointer",
+      }}><Plus size={20} /></button>
      </div>
-
-    <div style={{ background: COLORS.surface, boxShadow: "0 12px 28px rgba(20,20,15,0.10)", border:
-`1px solid ${COLORS.border}`, borderRadius: 20, padding: 18, marginBottom: 12 }}>
-     <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginBottom: 4 }}
->Posição consolidada</div>
-     <div style={{ fontFamily: FONT_MONO, fontSize: 28, fontWeight: 500 }}
->{currency(consolidada)}</div>
-     <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap", fontSize:
-12, color: COLORS.textMuted }}>
-      <span>Em contas: <b style={{ color: COLORS.textPrimary, fontFamily:
-FONT_MONO }}>{currency(totals.totalContas)}</b></span>
-      <span>Faturas do mês: <b style={{ color: COLORS.cartao, fontFamily:
-FONT_MONO }}>{currency(totals.totalCartoes)}</b></span>
-      <span>Investido: <b style={{ color: COLORS.green, fontFamily: FONT_MONO }}
->{currency(totals.investTotal)}</b></span>
+     <div style={{ fontSize: 12, opacity: 0.75, marginTop: 16 }}>Posição consolidada</div>
+     <div style={{ fontFamily: FONT_MONO, fontSize: 30, fontWeight: 700, marginTop: 2 }}>{currency(consolidada)}</div>
+     <div style={{ display: "flex", gap: 14, marginTop: 12, flexWrap: "wrap", fontSize: 11.5, opacity: 0.85 }}>
+      <span>Contas: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.totalContas)}</b></span>
+      <span>Faturas: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.totalCartoes)}</b></span>
+      <span>Investido: <b style={{ fontFamily: FONT_MONO }}>{currency(totals.investTotal)}</b></span>
+     </div>
     </div>
-   </div>
 
     {chartData.length > 0 && (
      <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "16px 8px 8px", marginBottom: 20 }}
@@ -1479,30 +1488,11 @@ paddingLeft: 8 }}>Entradas x Gastos (6 meses)</div>
      </div>
     )}
 
-   <button onClick={() => go("novo")} style={{
-     width: "100%", background: `linear-gradient(135deg, ${COLORS.teal}25, ${COLORS.teal}08)`,
-     border: `1px solid ${COLORS.teal}55`, borderRadius: 20, padding: 18,
-     display: "flex", alignItems: "center", justifyContent: "space-between", cursor:
-"pointer", marginBottom: 22,
-   }}>
-     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ width: 42, height: 42, borderRadius: 13, background: `${COLORS.teal}30`, display: "flex", alignItems: "center", justifyContent: "center",
-color: COLORS.teal }}><Plus size={20} /></div>
-      <div style={{ textAlign: "left" }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 600, fontSize: 16 }}
->Novos Lançamentos</div>
-       <div style={{ fontSize: 12, color: COLORS.textMuted }}>Entrada, saída ou
-cartão</div>
-      </div>
-     </div>
-     <ChevronRight size={20} color={COLORS.teal} />
-   </button>
-
    {!hasAnything && (
-     <div style={{ textAlign: "center", padding: "10px 12px 26px" }}>
+     <div style={{ textAlign: "center", padding: "4px 12px 22px" }}>
       <div style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 1.5,
 marginBottom: 8 }}>
-       Comece cadastrando sua conta e seus cartões abaixo — a planilha se monta
+       Comece cadastrando sua conta e seus cartões — a planilha se monta
 em volta do que você tiver.
       </div>
       <div style={{ color: COLORS.textMuted, fontSize: 11, lineHeight: 1.4,
@@ -1518,54 +1508,110 @@ COLORS.teal, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
      </div>
    )}
 
-    <SectionLabel>Contas</SectionLabel>
-    <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-      {state.accounts.map((acc, i) => (
-       <Tile key={acc.id} icon={<Wallet size={21} />} label={acc.nickname || acc.bank}
-         value={currency(totals.accountBalances[acc.id] || 0)} sub={acc.bank}
-         color={acc.color || colorFor(i)} onClick={() => go("account", acc.id)} />
-      ))}
-      <AddTile label="Nova conta" color={COLORS.orange} onClick={() =>
-go("accountForm")} />
+    <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+     <Tile image="icones/bancos.png" icon={<Wallet size={21} />} label="Bancos"
+       value={state.accounts.length ? `${state.accounts.length} conta(s)` : "Nenhuma ainda"}
+       sub={recContaCount ? `${recContaCount} recorrência(s)` : undefined}
+       color={COLORS.orange} onClick={() => go("bancos")} />
+     <Tile image="icones/cartoes.png" icon={<CreditCard size={21} />} label="Cartões"
+       value={state.cards.length ? `${state.cards.length} cartão(ões)` : "Nenhum ainda"}
+       sub={recCartaoCount ? `${recCartaoCount} recorrência(s)` : undefined}
+       color={COLORS.cartao} onClick={() => go("cartoes")} />
+     <Tile image="icones/investimentos.png" icon={<Coins size={21} />} label="Investimentos"
+       value={currency(totals.investTotal)}
+       sub={`${state.investments.length} ativo(s)`}
+       color={COLORS.green} onClick={() => go("investimentos")} />
+     <Tile image="icones/planejamento.png" icon={<Compass size={21} />} label="Planejamento"
+       value={state.goals.length ? `${state.goals.length} meta(s)` : "Metas e projeção"}
+       sub="Metas e projeção"
+       color={COLORS.cyan} onClick={() => go("planejamento")} />
+     <Tile image="icones/patrimonio.png" icon={<Landmark size={21} />} label="Patrimônio"
+       value={currency(consolidada)}
+       sub="Contas + investido − faturas"
+       color={COLORS.indigo} onClick={() => go("patrimonio")} />
+     <Tile image="icones/perfil.png" icon={<Settings size={21} />} label="Perfil"
+       value="Ajustes, PIN, backup"
+       color={COLORS.textMuted} onClick={() => go("config")} />
     </div>
-
-    <SectionLabel>Cartões</SectionLabel>
-    <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-      {state.cards.map((c, i) => (
-       <Tile key={c.id} icon={<CreditCard size={21} />} label={c.nickname ||
-c.cardLabel}
-         value={currency(totals.cardTotals[c.id] || 0)} sub={`${c.institution} · ${c.brand}`}
-         color={c.color || colorFor(i)} onClick={() => go("card", c.id)} />
-      ))}
-      <AddTile label="Novo cartão" color={COLORS.cartao} onClick={() =>
-go("cardForm")} />
    </div>
-
-     <SectionLabel>Outros</SectionLabel>
-     <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <Tile image="icones/resumo-mes.png" label="Resumo do Mês"
-value={monthLabelFull(new Date().getMonth())} valueFont={FONT_DISPLAY} valueSize={20}
-       sub="Gastos por categoria" color={COLORS.amber} onClick={() =>
-go("resumo")} />
-      <Tile icon={<Coins size={21} />} label="Investimentos"
-value={currency(totals.investTotal)}
-       sub={`${state.investments.length} ativo(s)`} color={COLORS.green}
-onClick={() => go("investimentos")} />
-      <Tile icon={<Compass size={21} />} label="Planejamento" value={state.goals.length
-? `${state.goals.length} meta(s)` : "Metas e projeção"} valueFont={FONT_DISPLAY}
-valueSize={20} sub="Metas e projeção" color={COLORS.cyan} onClick={() =>
-go("planejamento")} />
-      <Tile icon={<Repeat size={21} />} label="Recorrências" value={(state.recurring || []).filter(r => r.active).length ? `${(state.recurring || []).filter(r => r.active).length} ativa(s)` : "Nenhuma ainda"}
-       color={COLORS.orange} onClick={() => go("recorrencias")} />
-      <Tile icon={<Settings size={21} />} label="Configurações" value="Perfil, PIN, backup"
-       color={COLORS.indigo} onClick={() => go("config")} />
-     </div>
-    </div>
   );
 }
 function SectionLabel({ children }) {
   return <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginBottom: 8,
 fontWeight: 600, letterSpacing: 0.2 }}>{children}</div>;
+}
+
+// ---------- Bancos ----------
+function BancosScreen({ state, setState, totals, go, showToast }) {
+  return (
+    <div>
+      <ScreenHeader title="Bancos" color={COLORS.orange} onBack={() => go("home")} />
+      <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+        {state.accounts.map((acc, i) => (
+          <Tile key={acc.id} icon={<Wallet size={21} />} label={acc.nickname || acc.bank}
+            value={currency(totals.accountBalances[acc.id] || 0)} sub={acc.bank}
+            color={acc.color || colorFor(i)} onClick={() => go("account", acc.id)} />
+        ))}
+        <AddTile label="Nova conta" color={COLORS.orange} onClick={() => go("accountForm")} />
+      </div>
+      <RecorrenciasScreen state={state} setState={setState} showToast={showToast}
+        filterKind="conta" embedded title="Recorrências em conta corrente" />
+    </div>
+  );
+}
+
+// ---------- Cartões ----------
+function CartoesScreen({ state, setState, totals, go, showToast }) {
+  return (
+    <div>
+      <ScreenHeader title="Cartões" color={COLORS.cartao} onBack={() => go("home")} />
+      <div className="tile-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+        {state.cards.map((c, i) => (
+          <Tile key={c.id} icon={<CreditCard size={21} />} label={c.nickname || c.cardLabel}
+            value={currency(totals.cardTotals[c.id] || 0)} sub={`${c.institution} · ${c.brand}`}
+            color={c.color || colorFor(i)} onClick={() => go("card", c.id)} />
+        ))}
+        <AddTile label="Novo cartão" color={COLORS.cartao} onClick={() => go("cardForm")} />
+      </div>
+      <RecorrenciasScreen state={state} setState={setState} showToast={showToast}
+        filterKind="cartao" embedded title="Recorrências no cartão" />
+    </div>
+  );
+}
+
+// ---------- Patrimônio ----------
+function PatrimonioScreen({ state, totals, go }) {
+  const consolidada = totals.totalContas + totals.investTotal - totals.totalCartoes;
+  const rows = [
+    { label: "Em contas", value: totals.totalContas, color: COLORS.orange },
+    { label: "Investido", value: totals.investTotal, color: COLORS.green },
+    { label: "Faturas em aberto", value: -totals.totalCartoes, color: COLORS.cartao },
+  ];
+  return (
+    <div>
+      <ScreenHeader title="Patrimônio" color={COLORS.indigo} onBack={() => go("home")} />
+      <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 16 }}>
+        <div style={{ fontSize: 12.5, color: COLORS.textMuted, marginBottom: 4 }}>Patrimônio líquido</div>
+        <div style={{ fontFamily: FONT_MONO, fontSize: 28, fontWeight: 700 }}>{currency(consolidada)}</div>
+      </div>
+      <Section title="Composição atual">
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "10px 0", borderBottom: i < rows.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: r.color }} />
+              {r.label}
+            </div>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 14, fontWeight: 700,
+              color: r.value < 0 ? COLORS.negative : COLORS.textPrimary }}>{currency(r.value)}</div>
+          </div>
+        ))}
+      </Section>
+      <div style={{ fontSize: 11.5, color: COLORS.textMuted, textAlign: "center", padding: "4px 12px 12px" }}>
+        A evolução ao longo do tempo chega numa próxima atualização.
+      </div>
+    </div>
+  );
 }
 
 // ---------- Cadastro de conta ----------
@@ -4346,81 +4392,92 @@ categoria</button>
   );
 }
 
-function RecorrenciasScreen({ state, setState, onBack, showToast }) {
- const active = (state.recurring || []).filter(r => r.active);
- const [confirmingId, setConfirmingId] = useState(null);
- const cancel = (id) => {
-   const today = todayISO();
-   setState({
-     ...state,
-     recurring: (state.recurring || []).map(r => r.id === id ? { ...r, active: false } : r),
-     transactions: state.transactions.filter(t => !(t.recurringId === id && t.date >= today)),
-   });
-   showToast("Recorrência cancelada");
-   setConfirmingId(null);
- };
- const label = (r) => {
-   if (r.kind === "cartao") return state.cards.find(c => c.id === r.cardId)?.nickname || state.cards.find(c => c.id === r.cardId)?.cardLabel || "Cartão";
-   return state.accounts.find(a => a.id === r.accountId)?.nickname || state.accounts.find(a => a.id === r.accountId)?.bank || "Conta";
- };
- return (
-  <div>
-   <ScreenHeader title="Recorrências" color={COLORS.indigo} onBack={onBack} />
-   <Section title={`Ativas (${active.length})`}>
-    {active.length === 0 && <div style={{ fontSize: 13, color: COLORS.textMuted, padding: "8px 0" }}>Nenhuma recorrência ativa no momento.</div>}
-    {active.map(r => {
-      const count = state.transactions.filter(t => t.recurringId === r.id).length;
-      const cat = state.categories.find(c => c.id === r.categoryId) || { label:
-"Outros", color: "#94A3B8", icon: "MoreHorizontal" };
-      const CatIcon = ICONS[cat.icon] || MoreHorizontal;
-      const isCard = r.kind === "cartao";
-      const card = isCard ? state.cards.find(c => c.id === r.cardId) : null;
-      const acc = !isCard ? state.accounts.find(a => a.id === r.accountId) : null;
-      const sourceLabel = isCard ? (card?.nickname || card?.cardLabel || "Cartão") :
-(acc?.nickname || acc?.bank || "Conta");
-      const sourceColor = isCard ? (card?.color || COLORS.cartao) : (acc?.color ||
-COLORS.orange);
-      return (
-        <div key={r.id} style={{ padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
-         <div style={{ display: "flex", justifyContent: "space-between", alignItems:
-"flex-start", gap: 10 }}>
-          <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 11, background:
-`${cat.color}22`, display: "flex", alignItems: "center", justifyContent: "center",
-flexShrink: 0 }}><CatIcon size={17} color={cat.color} /></div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.description}</div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 4,
-marginTop: 4, background: `${sourceColor}18`, borderRadius: 8, padding: "2px 8px" }}>
-                {isCard ? <CreditCard size={11} color={sourceColor} /> : <Wallet
-size={11} color={sourceColor} />}
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: sourceColor }}
->{sourceLabel}</span>
-              </div>
-              <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
-               {r.kind === "entrada" ? "Entrada" : r.kind === "saida" ? "Saída" :
-"Cartão"} · {r.totalOccurrences ? `${count} de ${r.totalOccurrences} vezes` : `todo
-dia ${r.dayOfMonth}, sem prazo`}
-              </div>
-            </div>
+function RecorrenciaRow({ r, state, setState, showToast, confirmingId, setConfirmingId }) {
+  const count = state.transactions.filter(t => t.recurringId === r.id).length;
+  const cat = state.categories.find(c => c.id === r.categoryId) || { label: "Outros", color: "#94A3B8", icon: "MoreHorizontal" };
+  const CatIcon = ICONS[cat.icon] || MoreHorizontal;
+  const isCard = r.kind === "cartao";
+  const card = isCard ? state.cards.find(c => c.id === r.cardId) : null;
+  const acc = !isCard ? state.accounts.find(a => a.id === r.accountId) : null;
+  const sourceLabel = isCard ? (card?.nickname || card?.cardLabel || "Cartão") : (acc?.nickname || acc?.bank || "Conta");
+  const sourceColor = isCard ? (card?.color || COLORS.cartao) : (acc?.color || COLORS.orange);
+  const cancel = () => {
+    const today = todayISO();
+    setState({
+      ...state,
+      recurring: (state.recurring || []).map(x => x.id === r.id ? { ...x, active: false } : x),
+      transactions: state.transactions.filter(t => !(t.recurringId === r.id && t.date >= today)),
+    });
+    showToast("Recorrência cancelada");
+    setConfirmingId(null);
+  };
+  return (
+    <div style={{ padding: "12px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+      <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 11, background: `${cat.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><CatIcon size={17} color={cat.color} /></div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.description}</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, background: `${sourceColor}18`, borderRadius: 8, padding: "2px 8px" }}>
+            {isCard ? <CreditCard size={11} color={sourceColor} /> : <Wallet size={11} color={sourceColor} />}
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: sourceColor }}>{sourceLabel}</span>
           </div>
-          <div style={{ fontFamily: FONT_MONO, fontSize: 14, fontWeight: 700, color:
-r.kind === "entrada" ? COLORS.positive : COLORS.textPrimary, flexShrink: 0 }}
->{currency(r.amount)}</div>
-         </div>
-         {confirmingId === r.id ? (
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button onClick={() => cancel(r.id)} style={{ ...saveBtnStyle(COLORS.negative), marginTop: 0, flex: 1, padding: "8px 0", fontSize: 12.5 }}>Confirmar cancelamento</button>
-            <button onClick={() => setConfirmingId(null)} style={{ ...saveBtnStyle(COLORS.surface2), marginTop: 0, flex: 1, padding: "8px 0", fontSize: 12.5 }}>Voltar</button>
+          <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>
+           {r.kind === "entrada" ? "Entrada" : r.kind === "saida" ? "Saída" : "Cartão"} · {r.totalOccurrences ? `${count} de ${r.totalOccurrences} vezes` : `todo dia ${r.dayOfMonth}, sem prazo`}
           </div>
-         ):(
-          <button onClick={() => setConfirmingId(r.id)} style={{ marginTop: 8, background: "none", border: "none", color: COLORS.negative, fontSize: 11.5, cursor: "pointer", padding: 0 }}>Cancelar (mantém o que já passou)</button>
-         )}
         </div>
-      );
-     })}
-    </Section>
-  </div>
+      </div>
+      <div style={{ fontFamily: FONT_MONO, fontSize: 14, fontWeight: 700, color: r.kind === "entrada" ? COLORS.positive : COLORS.textPrimary, flexShrink: 0 }}>{currency(r.amount)}</div>
+     </div>
+     {confirmingId === r.id ? (
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button onClick={cancel} style={{ ...saveBtnStyle(COLORS.negative), marginTop: 0, flex: 1, padding: "8px 0", fontSize: 12.5 }}>Confirmar cancelamento</button>
+        <button onClick={() => setConfirmingId(null)} style={{ ...saveBtnStyle(COLORS.surface2), marginTop: 0, flex: 1, padding: "8px 0", fontSize: 12.5 }}>Voltar</button>
+      </div>
+     ):(
+      <button onClick={() => setConfirmingId(r.id)} style={{ marginTop: 8, background: "none", border: "none", color: COLORS.negative, fontSize: 11.5, cursor: "pointer", padding: 0 }}>Cancelar (mantém o que já passou)</button>
+     )}
+    </div>
+  );
+}
+
+function RecorrenciasScreen({ state, setState, onBack, showToast, filterKind, embedded, title }) {
+  const base = (state.recurring || []).filter(r => r.active);
+  const active = filterKind === "cartao" ? base.filter(r => r.kind === "cartao")
+    : filterKind === "conta" ? base.filter(r => r.kind !== "cartao")
+    : base;
+  const [confirmingId, setConfirmingId] = useState(null);
+  const heading = title || "Recorrências";
+
+  if (embedded) {
+    return (
+      <div>
+        <SectionLabel>{heading}</SectionLabel>
+        {active.length === 0 ? (
+          <div style={{ fontSize: 13, color: COLORS.textMuted, padding: "0 0 16px" }}>Nenhuma recorrência ativa no momento.</div>
+        ) : (
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: "0 16px", marginBottom: 14 }}>
+            {active.map(r => (
+              <RecorrenciaRow key={r.id} r={r} state={state} setState={setState} showToast={showToast}
+                confirmingId={confirmingId} setConfirmingId={setConfirmingId} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <ScreenHeader title={heading} color={COLORS.indigo} onBack={onBack} />
+      <Section title={`Ativas (${active.length})`}>
+        {active.length === 0 && <div style={{ fontSize: 13, color: COLORS.textMuted, padding: "8px 0" }}>Nenhuma recorrência ativa no momento.</div>}
+        {active.map(r => (
+          <RecorrenciaRow key={r.id} r={r} state={state} setState={setState} showToast={showToast}
+            confirmingId={confirmingId} setConfirmingId={setConfirmingId} />
+        ))}
+      </Section>
+    </div>
   );
 }
 
