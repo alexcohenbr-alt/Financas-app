@@ -91,7 +91,7 @@ function useFonts() {
   useEffect(() => {
     const l = document.createElement("link");
     l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap";
+    l.href = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=Sora:wght@600;700;800&display=swap";
     document.head.appendChild(l);
     return () => document.head.removeChild(l);
   }, []);
@@ -125,7 +125,7 @@ function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
 const FONT_DISPLAY = "'Bricolage Grotesque', sans-serif";
 const FONT_BODY = "'Public Sans', sans-serif";
-const FONT_MONO = "'IBM Plex Mono', monospace";
+const FONT_MONO = "'Sora', sans-serif";
 
 // ---------- Listas de referência ----------
 const BANKS = [
@@ -1006,20 +1006,20 @@ function AmountInput({ value, onChange, placeholder = "0,00", decimals = 2, styl
   );
 }
 function AmountKeypadModal({ value, decimals, onConfirm, onClose }) {
-  const [draft, setDraft] = useState(value);
-  const press = (key) => {
-    setDraft(d => {
-      if (key === "back") return d.slice(0, -1);
-      if (key === ",") {
-        if (d.includes(",")) return d;
-        return d.length === 0 ? "0," : d + ",";
-      }
-      const commaIdx = d.indexOf(",");
-      if (commaIdx !== -1 && d.length - commaIdx > decimals) return d;
-      if (d === "0") return key; // evita "0" fixo à esquerda antes da vírgula
-      return d + key;
+  const startUnits = Math.round((parseBRNumber(value || "0") || 0) * Math.pow(10,
+decimals));
+  const [units, setUnits] = useState(startUnits);
+  const MAX_UNITS = Math.pow(10, 13); // teto de segurança, bem acima de qualquer valor real
+  const press = (digit) => {
+    setUnits(u => {
+      const next = u * 10 + digit;
+      return next >= MAX_UNITS ? u : next;
     });
   };
+  const backspace = () => setUnits(u => Math.floor(u / 10));
+  const numericValue = units / Math.pow(10, decimals);
+  const formatted = numericValue.toLocaleString("pt-BR", { minimumFractionDigits:
+decimals, maximumFractionDigits: decimals });
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,15,0.45)",
 zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
@@ -1027,33 +1027,31 @@ zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
 margin: "0 auto", background: COLORS.surface, borderTopLeftRadius: 22,
 borderTopRightRadius: 22, padding: "18px 16px 28px", boxShadow: "0 -8px 30px rgba(20,20,15,0.25)" }}>
         <div style={{ textAlign: "center", fontFamily: FONT_MONO, fontSize: 32,
-fontWeight: 500, marginBottom: 18, color: COLORS.textPrimary }}>{draft || "0"}</div>
+fontWeight: 700, marginBottom: 18, color: COLORS.textPrimary }}>{formatted}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          {["1","2","3","4","5","6","7","8","9"].map(n => (
+          {[1,2,3,4,5,6,7,8,9].map(n => (
             <button key={n} onClick={() => press(n)} style={amountKeyStyle()}>{n}</button>
           ))}
-          <button onClick={() => press(",")} style={amountKeyStyle("comma")}>,</button>
-          <button onClick={() => press("0")} style={amountKeyStyle()}>0</button>
-          <button onClick={() => press("back")} style={{ ...amountKeyStyle(), background:
+          <button onClick={() => { press(0); press(0); }} style={amountKeyStyle()}>00</button>
+          <button onClick={() => press(0)} style={amountKeyStyle()}>0</button>
+          <button onClick={backspace} style={{ ...amountKeyStyle(), background:
 "transparent", border: "none" }}><Delete size={22} color={COLORS.textMuted} /></button>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button onClick={onClose} style={{ ...saveBtnStyle(COLORS.surface2), marginTop:
 0, flex: 1 }}>Cancelar</button>
-          <button onClick={() => onConfirm(draft)} style={{ ...saveBtnStyle(COLORS.teal),
-marginTop: 0, flex: 2 }}>Confirmar</button>
+          <button onClick={() => onConfirm(formatted)} style={{
+...saveBtnStyle(COLORS.teal), marginTop: 0, flex: 2 }}>Confirmar</button>
         </div>
       </div>
     </div>
   );
 }
-function amountKeyStyle(kind) {
-  const isComma = kind === "comma";
+function amountKeyStyle() {
   return {
     height: 58, borderRadius: 16, border: `1px solid ${COLORS.border}`,
-    background: isComma ? COLORS.teal : COLORS.surface2,
-    color: isComma ? "#fff" : COLORS.textPrimary,
-    fontSize: isComma ? 30 : 21, fontWeight: isComma ? 800 : 500,
+    background: COLORS.surface2, color: COLORS.textPrimary,
+    fontSize: 21, fontWeight: 700,
     fontFamily: FONT_MONO, cursor: "pointer", display: "flex", alignItems: "center",
 justifyContent: "center",
   };
@@ -1107,11 +1105,23 @@ zIndex: 1000, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480,
 margin: "0 auto", background: COLORS.surface, borderTopLeftRadius: 22,
 borderTopRightRadius: 22, padding: "18px 16px 24px", boxShadow: "0 -8px 30px rgba(20,20,15,0.25)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 14 }}>
           <button onClick={() => changeMonth(-1)} style={calNavBtnStyle()}><ChevronLeft
 size={18} /></button>
-          <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16 }}
->{monthLabelFull(viewMonth)} {viewYear}</div>
+          <div style={{ display: "flex", gap: 6, flex: 1, justifyContent: "center" }}>
+            <select value={viewMonth} onChange={e => setViewMonth(parseInt(e.target.value,
+10))} style={{ ...selectStyle, width: "auto", padding: "8px 10px", fontSize: 14,
+fontFamily: FONT_DISPLAY, fontWeight: 700 }}>
+              {Array.from({ length: 12 }).map((_, i) => <option key={i} value={i}
+>{monthLabelFull(i)}</option>)}
+            </select>
+            <select value={viewYear} onChange={e => setViewYear(parseInt(e.target.value,
+10))} style={{ ...selectStyle, width: "auto", padding: "8px 10px", fontSize: 14,
+fontFamily: FONT_DISPLAY, fontWeight: 700 }}>
+              {Array.from({ length: 151 }).map((_, i) => { const y = now.getFullYear()
+- 100 + i; return <option key={y} value={y}>{y}</option>; })}
+            </select>
+          </div>
           <button onClick={() => changeMonth(1)} style={calNavBtnStyle()}><ChevronRight
 size={18} /></button>
         </div>
@@ -1256,6 +1266,7 @@ COLORS.textPrimary, fontFamily: FONT_BODY, paddingBottom: 40 }}>
       * { box-sizing: border-box; }
       input, select { font-family: inherit; }
       ::-webkit-scrollbar { display: none; }
+      [style*="Sora"] { font-weight: 700 !important; }
     `}</style>
     <style>{`
       @media (min-width: 900px) {
